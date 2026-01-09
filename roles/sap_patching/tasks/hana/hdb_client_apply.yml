@@ -1,0 +1,152 @@
+# Sanitasion and checks
+- name: Check that only one of sap_patching_hdb_client_install_path and sap_patching_hdb_client_shared_path is defined and not empty
+  assert:
+    that:
+      - (sap_patching_hdb_client_install_path | d('', true) | length > 0) != (sap_patching_hdb_client_shared_path | d('', true) | length > 0)
+    fail_msg: "Exactly one of sap_patching_hdb_client_install_path or sap_patching_hdb_client_shared_path must be defined and not empty"
+    success_msg: "Only one of sap_patching_hdb_client_install_path or sap_patching_hdb_client_shared_path is defined and not empty"
+  changed_when: false
+
+- name: Set sap_patching_hdb_client_to_apply to default if not defined or empty
+  set_fact:
+    sap_patching_hdb_client_to_apply: "{{ sap_patching_hdb_client_to_apply_symlink }}"
+  when: sap_patching_hdb_client_to_apply is not defined or sap_patching_hdb_client_to_apply | type_debug == "NoneType" or sap_patching_hdb_client_to_apply | d('', true) |  length == 0
+
+- name: Prepend sap_patching_hdb_client_base if sap_patching_hdb_client_to_apply is not an absolute path
+  set_fact:
+    sap_patching_hdb_client_to_apply: "{{ sap_patching_hdb_client_base }}/{{ sap_patching_hdb_client_to_apply }}"
+  when:
+    - sap_patching_hdb_client_to_apply is defined
+    - not sap_patching_hdb_client_to_apply.startswith('/')
+
+# Target directory checks
+- name: Set HDB client installation path to individual path if using individual installation
+  set_fact:
+    sap_patching_hdb_client_path_check: "{{ sap_patching_hdb_client_install_path }}"
+  when: sap_patching_hdb_client_install_path | d('', true) | length > 0
+
+- name: Set HDB client installation path to shared path if using shared installation
+  set_fact:
+    sap_patching_hdb_client_path_check: "{{ sap_patching_hdb_client_shared_path }}"
+  when: sap_patching_hdb_client_shared_path | d('', true) | length > 0
+
+- name: Check that {{ sap_patching_hdb_client_path_check }} exists
+  stat:
+    path: "{{ sap_patching_hdb_client_path_check }}"
+  register: sap_patching_hdb_client_install_stat
+  changed_when: false
+
+# This is to prevent issues due to run_once: true on hosts with no HDB server installed
+- name: Stop executing on hosts without HDB client installed
+  ansible.builtin.meta: end_host
+  when:
+    - not sap_patching_hdb_client_install_stat.stat.exists
+
+- name: Continue if the target directory is present (this will silently skip servers without HDB client installed)
+  when:
+  - sap_patching_hdb_client_install_stat.stat.exists
+  - sap_patching_hdb_client_install_stat.stat.islnk or sap_patching_hdb_client_install_stat.stat.isdir
+  block:
+# - name: Ensure {{ sap_patching_hdb_client_path_check }} is a directory
+#   assert:
+#     that:
+#       - sap_patching_hdb_client_install_stat.stat.exists
+#       - sap_patching_hdb_client_install_stat.stat.islnk or sap_patching_hdb_client_install_stat.stat.isdir
+#     fail_msg: "{{ sap_patching_hdb_client_path_check }} does not exist or is not a symlink/directory"
+#     success_msg: "{{ sap_patching_hdb_client_path_check }} exists and is a symlink/directory"
+#   changed_when: false
+
+  - name: Check the content of {{ sap_patching_hdb_client_path_check }}
+    find:
+      paths: "{{ sap_patching_hdb_client_path_check }}"
+      file_type: any
+    register: sap_patching_hdb_client_path_check_files
+    changed_when: false
+
+  - name: Ensure {{ sap_patching_hdb_client_path_check }} is not empty and contains hdbsql or hdbclient
+    assert:
+      that:
+        - sap_patching_hdb_client_path_check_files.matched | int > 0
+        - "'hdbsql' in sap_patching_hdb_client_path_check_files.files | map(attribute='path') | map('basename') | list or 'hdbclient' in sap_patching_hdb_client_path_check_files.files | map(attribute='path') | map('basename') | list"
+      fail_msg: "{{ sap_patching_hdb_client_path_check }} is empty or doesn't contain required files, this is unexpected for a correctly installed system"
+      success_msg: "{{ sap_patching_hdb_client_path_check }} is not empty and contains required files"
+    changed_when: false
+
+  # Local copy of extracted files if not on shared storage
+  - name: Copy hdb client to be applied to a local directory if not present on a shared one
+    when: not sap_patching_hdb_client_extracted_shared | bool
+    copy:
+      src: "{{ sap_patching_hdb_client_to_apply }}/"
+      dest: "{{ sap_patching_hdb_client_extracted_local_path }}"
+      remote_src: "{{ sap_patching_hdb_client_extracted_shared | bool }}"
+      owner: "{{ sap_patching_sap_system_sid | lower }}adm"
+      group: sapsys
+      mode: '0755'
+      directory_mode: '0755'
+    changed_when: true
+
+  - name: Overriding HDB client to apply path settings with extracted local path as it's not present on a shared one and it's just been copied here
+    when: not sap_patching_hdb_client_extracted_shared | bool
+    set_fact:
+      sap_patching_hdb_client_to_apply: "{{ sap_patching_hdb_client_extracted_local_path }}"
+
+  # Execute these checks only once if the files to be applied are on shared folder directly accessible from the sap host
+  - name: Execute checks of the HDB client files which will be applied in a moment (once if files are shared)
+    run_once: "{{ sap_patching_hdb_client_extracted_shared | bool }}"
+    block:
+    - name: Check that sap_patching_hdb_client_to_apply exists
+      stat:
+        path: "{{ sap_patching_hdb_client_to_apply }}"
+      register: sap_patching_hdb_client_to_apply_stat
+      failed_when: not sap_patching_hdb_client_to_apply_stat.stat.exists
+      changed_when: false
+
+    - name: Ensure sap_patching_hdb_client_to_apply is a directory or symlink
+      assert:
+        that:
+          - sap_patching_hdb_client_to_apply_stat.stat.isdir or sap_patching_hdb_client_to_apply_stat.stat.islnk
+        fail_msg: "sap_patching_hdb_client_to_apply is not a directory or symlink"
+        success_msg: "sap_patching_hdb_client_to_apply is a directory or symlink"
+      changed_when: false
+
+    - name: Check the content of {{ sap_patching_hdb_client_to_apply }}
+      find:
+        paths: "{{ sap_patching_hdb_client_to_apply }}"
+        file_type: any
+      register: sap_patching_hdb_client_to_apply_files
+      changed_when: false
+
+    - name: Ensure {{ sap_patching_hdb_client_to_apply }} is not empty and contains client folder and hdbinst
+      assert:
+        that:
+          - sap_patching_hdb_client_to_apply_files.matched | int > 0
+          - "'client' in sap_patching_hdb_client_to_apply_files.files | map(attribute='path') | map('basename') | list"
+          - "'hdbinst' in sap_patching_hdb_client_to_apply_files.files | map(attribute='path') | map('basename') | list"
+        fail_msg: "{{ sap_patching_hdb_client_to_apply }} is empty or doesn't contain required files, this is unexpected for a correctly extracted SAR archive"
+        success_msg: "{{ sap_patching_hdb_client_to_apply }} is not empty and contains required files"
+      changed_when: false
+
+  # Execution
+  - name: Prepare command line parameters for hdbinst
+    set_fact:
+      sap_patching_hdb_client_hdbinst_params: >-
+        -b
+        {{ '--path=' + sap_patching_hdb_client_install_path if sap_patching_hdb_client_install_path | d('',true) | length > 0  else '' }}
+        {{ '--sapmnt=' + sap_patching_hdb_client_shared_path if sap_patching_hdb_client_shared_path | d('',true) | length > 0  else '' }}
+
+  # Note, this requires SAP application server to be down if local installation is used
+  # If shared client installation is used, run this only once
+  # hdbinst will not overwrite anything if the same version is already installed, effectively making this idempotent
+  # It will, however report "Installation done" even if nothing was changed
+  # "Installation is up-to-date" is present in the /var/tmp/hdb_client*/hdbinst_client.log file but not in stdout/stderr so it's difficult to use it for changed_when
+  - name: Update HANA DB client
+    run_once: "{{ not sap_patching_hdb_client_extracted_shared | bool }}"
+    ansible.builtin.command: >-
+      '{{ sap_patching_hdb_client_to_apply }}/hdbinst' {{ sap_patching_hdb_client_hdbinst_params }}
+    register: sap_patching_hdb_client_hdbinst_output
+    args:
+      chdir: "{{ sap_patching_hdb_client_to_apply }}"
+    become: true
+    become_user: "{{ sap_patching_sap_system_sid | lower }}adm"
+    changed_when: "'Installation done' in sap_patching_hdb_client_hdbinst_output.stdout and sap_patching_hdb_client_hdbinst_output.rc == 0"
+    failed_when: "'Installation failed' in sap_patching_hdb_client_hdbinst_output.stderr or sap_patching_hdb_client_hdbinst_output.rc != 0"

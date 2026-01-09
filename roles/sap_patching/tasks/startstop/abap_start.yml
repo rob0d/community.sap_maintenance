@@ -1,0 +1,56 @@
+---
+- name: Setting correct sid variables if required
+  when: _sap_patching_sap_system_sid | d('',true) | length == 0 or sap_patching_params.task_execution_mode | d('',true)  == 'direct'
+  set_fact:
+    _sap_patching_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
+
+- name: Get a list of sapstartsrv instances
+  ansible.builtin.include_tasks:
+    file: sapstartsrv_instances.yml
+
+- name: Proceed only if at least one instance is found
+  when: _sap_patching_instance_list | length > 0
+  block:
+
+  - name: Block to start the system and wait until all instances are up
+    run_once: true
+    block:
+      - name: Start the system
+        ansible.builtin.shell: |
+          source ~/.profile && sapcontrol -nr {{ _sap_patching_instance_list[0][1] }} -function StartSystem
+        args:
+          executable: /bin/bash
+        become: true
+        become_user: "{{ _sap_patching_sap_system_sid | lower }}adm"
+        register: _sap_patching_start_system
+        failed_when: "_sap_patching_start_system.rc != 0 or 'FAIL' in _sap_patching_start_system.stdout"
+        changed_when: _sap_patching_start_system.rc == 0
+
+      - name: Wait for the system to start
+        ansible.builtin.shell: |
+          source ~/.profile && sapcontrol -nr {{ _sap_patching_instance_list[0][1] }} -function WaitforStarted 600 10
+        args:
+          executable: /bin/bash
+        become: true
+        become_user: "{{ _sap_patching_sap_system_sid | lower }}adm"
+        register: _sap_patching_start_system_wait
+        failed_when: "_sap_patching_start_system_wait.rc != 0 or 'FAIL' in _sap_patching_start_system_wait.stdout"
+        changed_when: _sap_patching_start_system_wait.rc == 0
+
+      # # This is a bit crude, but safest to make sure we continue only if the whole system is up
+      # # Grabbing the first instance number from the list as any instance can see all others
+      # - name: Wait until all instances GREEN and not GRAY or YELLOW
+      #   when: _sap_patching_kernel_restart_strategy != "bootstrap"
+      #   #source ~/.profile && sapcontrol -nr {{ _sap_patching_instance_list[0][1] }} -format script -function GetSystemInstanceList | grep 'dispstatus: GRAY$\|dispstatus: YELLOW$\|FAIL'
+      #   ansible.builtin.shell: |
+      #     source ~/.profile && sapcontrol -nr {{ _sap_patching_instance_list[0][1] }} -format script -function GetSystemInstanceList | grep 'dispstatus:\|FAIL'
+      #   args:
+      #     executable: /bin/bash
+      #   become: true
+      #   become_user: "{{ _sap_patching_sap_system_sid | lower }}adm"
+      #   register: _sap_patching_instances_check_started
+      #   until: "'GRAY' not in _sap_patching_instances_check_started.stdout and 'YELLOW' not in _sap_patching_instances_check_started.stdout and 'GREEN' in _sap_patching_instances_check_started.stdout"
+      #   retries: 30
+      #   delay: 20
+      #   failed_when: "'FAIL' in _sap_patching_instances_check_started.stdout"
+      #   changed_when: false

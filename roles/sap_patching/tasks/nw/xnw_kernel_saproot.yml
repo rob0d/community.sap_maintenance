@@ -1,0 +1,14 @@
+---
+- name: Check if saproot.sh exists and is executable
+  ansible.builtin.stat:
+    path: /usr/sap/{{ _sap_patching_sap_system_sid | upper }}/SYS/exe/run/saproot.sh
+  register: _sap_patching_kernel_saproot_sh_stat
+
+- name: Execute saproot.sh to adjust permissions after patching
+  become: true
+  when: _sap_patching_kernel_saproot_sh_stat.stat.exists and _sap_patching_kernel_saproot_sh_stat.stat.mode is search('..7$|..5$|..1$')
+  ansible.builtin.shell: |
+    /usr/sap/{{ _sap_patching_sap_system_sid | upper }}/SYS/exe/run/saproot.sh {{ _sap_patching_sap_system_sid | upper }}
+  register: _sap_patching_kernel_saproot
+  changed_when: _sap_patching_kernel_saproot.rc == 0
+  failed_when: _sap_patching_kernel_saproot.rc != 0

@@ -1,0 +1,10 @@
+
+- name: Setting correct variables for restart task
+  set_fact:
+    _sap_patching_sap_system_sid: "{{ sap_patching_wdp_system_sid }}"
+    _sap_patching_kernel_restart_strategy: "all"
+    _sap_patching_kernel_or_webdisp: "webdisp"
+
+- name: Execute kernel restart function to restart web disp
+  ansible.builtin.include_tasks:
+    file: xnw_kernel_restart.yml

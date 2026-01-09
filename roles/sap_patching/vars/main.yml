@@ -1,0 +1,136 @@
+---
+# Note:
+# The 'where' condition must evaluate to a boolean true/false in YAML format. - NOT USED anymore. To be removed in future.
+# tags - not used, replaced by execution plan
+# vars - set as sap_patching_params dictionary containing all variables for the task file
+sap_patching_exec_def:
+  # ABAP kernel
+  # abap_kernel:
+  #   file: nw/abap_kernel.yml
+  #   where: true
+  #   tags:
+  #     - sap_patching_abap_kernel
+  #   vars:
+    # run_once: false
+  abap_kernel_prepare:
+    file: nw/abap_kernel_prepare.yml
+    where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
+    vars:
+    run_once: true
+  abap_kernel_apply:
+    file: nw/abap_kernel_apply.yml
+    where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
+    vars:
+    run_once: true
+  abap_kernel_restart:
+    file: nw/abap_kernel_restart.yml
+    where: "{% if group_names | select('search', '^nwas_abap.*') | list | length > 0 %}true{% else %}false{% endif %}"
+    vars:
+    run_once: false
+
+  # HANA DB client
+  hdb_client_prepare:
+    file: hana/hdb_client_prepare.yml
+    where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
+    tags:
+      - sap_patching_hdb_client_prepare
+    vars:
+    run_once: true
+  hdb_client_apply:
+    file: hana/hdb_client_apply.yml
+    where: "{% if 'nwas_abap_pas' in group_names or 'nwas_abap_aas' in group_names %}true{% else %}false{% endif %}"
+    tags:
+      - sap_patching_hdb_client_apply
+    vars:
+    run_once: false
+
+  # HANA DB server platform
+  hdb_server_prepare:
+    file: hana/hdb_server_prepare.yml
+    where:
+    vars:
+    run_once: true
+  hdb_server_apply:
+    file: hana/hdb_server_apply.yml
+    where:
+    vars:
+      update_mode: full
+    run_once: false
+  hdb_server_update_prepare:
+    file: hana/hdb_server_apply.yml
+    where:
+    vars:
+      update_mode: prepare
+    run_once: false
+  hdb_server_update_resume:
+    file: hana/hdb_server_apply.yml
+    where:
+    vars:
+      update_mode: resume
+    run_once: false
+
+  # Host agent
+  host_agent_prepare:
+    file: agents/host_agent_prepare.yml
+    where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
+    vars:
+    run_once: true
+  host_agent_apply_auto:
+    file: agents/host_agent_apply.yml
+    where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
+    vars:
+      update_mode: auto
+    run_once: true
+  host_agent_apply_manual:
+    file: agents/host_agent_apply.yml
+    where: true
+    vars:
+      update_mode: manual
+    run_once: false
+
+  # Web disp
+  webdisp_prepare:
+    file: nw/webdisp_prepare.yml
+    where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
+    vars:
+    run_once: true
+  webdisp_apply:
+    file: nw/webdisp_apply.yml
+    where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
+    vars:
+    run_once: false
+  webdisp_restart:
+    file: nw/webdisp_restart.yml
+    where: "{% if group_names | select('search', '^webdisp.*') | list | length > 0 %}true{% else %}false{% endif %}"
+    vars:
+    run_once: false
+
+  # All stop tasks
+  abap_stop_system:
+    file: startstop/abap_stop.yml
+    where: "{% if group_names | select('search', '^nwas_abap.*') | list | length > 0 %}true{% else %}false{% endif %}"
+    vars:
+      sap_control_action: stop_system
+      task_execution_mode: direct
+    run_once: true
+  # hdb_stop_instance:
+  #   file: startstop/hdb_stop.yml
+  #   where: "{% if group_names | select('search', '^hana.*') | list | length > 0 %}true{% else %}false{% endif %}"
+  #   vars:
+  #     sap_control_action: stop_instance
+  #   run_once: false
+
+  # All start tasks
+  abap_start_system:
+    file: startstop/abap_start.yml
+    where: "{% if group_names | select('search', '^nwas_abap.*') | list | length > 0 %}true{% else %}false{% endif %}"
+    vars:
+      sap_control_action: start_system
+      task_execution_mode: direct
+    run_once: true
+  # hdb_start_instance:
+  #   file: startstop/hdb_start.yml
+  #   where: "{% if group_names | select('search', '^hana.*') | list | length > 0 %}true{% else %}false{% endif %}"
+  #   vars:
+  #     sap_control_action: start_instance
+  # run_once: false

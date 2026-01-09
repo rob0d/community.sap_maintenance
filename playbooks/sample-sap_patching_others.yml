@@ -1,0 +1,81 @@
+---
+# Basic HANA DB client update example
+# hdb_client_prepare
+#  It will look in {{ sap_patching_hdb_client_source }} for HANA DB client SAR files and use {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+#  to unpack the highest version into {{ sap_patching_hdb_client_base }}/extracted_<hdb_client_version> before applying the patch.
+#  It will use the HANA db client version that was provided in {{ sap_patching_hdb_client_source }} and set {{ sap_patching_hdb_client_to_apply }}
+# abap_stop_system
+#  It will stop the whole ABAP system before applying the HDB client patch
+# hdb_client_apply
+#  It will apply the HANA db client that was prepared in the previous step i.e. execute hdbinst with the correct parameters
+# abap_start_system
+#  It will start the whole ABAP system after the HDB client patch was applied
+
+- name: Basic HANA DB client update using the lastest downloaded version and stop/start the ABAP system when required
+  hosts: all
+  become: true
+  any_errors_fatal: true
+  vars:
+    sap_patching_sap_system_sid: S4H
+    sap_patching_execution_plan:
+      - hdb_client_prepare
+      - abap_stop_system
+      - hdb_client_apply
+      - abap_start_system
+    sap_patching_hdb_client_base: /install/hanadb/client
+    sap_patching_hdb_client_source: "{{ sap_patching_hdb_client_base }}/source"
+
+  roles:
+    - sap_patching
+
+# Basic SAP Host agent update - using host agent automatic update feature
+# host_agent_prepare
+#  It will look in {{ sap_patching_host_agent_source }} for host agent related SAR files and use {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+#  to unpack the highest version into {{ sap_patching_host_agent_base }}/_extracted_<host_agent_version> before applying the patch.
+#  It will use the host agent version that was provided in {{ sap_patching_host_agent_source }} and set {{ sap_patching_host_agent_to_apply }}
+# host_agent_apply_auto
+#  It will apply the host agent that was prepared in the previous step i.e. copy the new version into auto update directory for host agents to pick up and auto update.
+
+- name: Basic host agent auto update using the lastest downloaded version
+  hosts: all
+  become: true
+  vars:
+    sap_patching_sapcar_path: /install
+    sap_patching_sapcar_file_name: SAPCAR.EXE
+    sap_patching_execution_plan:
+      - host_agent_prepare
+      - host_agent_apply_auto
+    sap_patching_host_agent_base: /install/hostagents
+    sap_patching_host_agent_source: "{{ sap_patching_host_agent_base }}/source"
+    sap_patching_host_agent_autoupdate_path: /install/HostAgentUpdateDir
+  roles:
+    - sap_patching
+
+
+# Basic SAP Web dispatcher update example
+# Webdisp update is very similar (just simplier) to the kernel update. It needs restart step too.
+# This will run all three webdisp steps:
+# webdisp_prepare
+#  It will look in {{ sap_patching_webdisp_source }} for  webdisp related SAR files and use {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+#  to unpack the highest version into {{ sap_patching_webdisp_base }}/_extracted_<webdisp_version> before applying the patch.
+#  It will use the webdisp version that was provided in {{ sap_patching_webdisp_source }} and set {{ sap_patching_webdisp_to_apply }}
+# webdisp_apply
+#  It will apply the webdisp that was prepared in the previous step i.e. copy it to the global SYS/exe/run directory
+# webdisp_restart
+#  This will update sapuxuserchk files and restart the system
+
+- name: Basic webdisp update using the lastest downloaded version
+  hosts: all
+  become: true
+  vars:
+    sap_patching_sapcar_path: /install
+    sap_patching_sapcar_file_name: SAPCAR.EXE
+    sap_patching_wdp_system_sid: WDP
+    sap_patching_execution_plan:
+      - webdisp_prepare
+      - webdisp_apply
+      - webdisp_restart
+    sap_patching_webdisp_base: /install/webdisp
+    sap_patching_webdisp_source: "{{ sap_patching_webdisp_base }}/source"
+  roles:
+    - sap_patching

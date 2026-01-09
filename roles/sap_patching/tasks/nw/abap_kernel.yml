@@ -1,0 +1,39 @@
+---
+# # Obsolete, to be removed in future versions
+# # Execute this only on ONE host ideally on ASCS hosts or any other host with an ABAP instance
+# # Alternatively this can be run on Ansible controller if the kernel source SAR files and directory for unpacked kernel are accessible
+# # Set sap_patching_kernel_extracted_shared: false if you want to run this on Ansible controller
+# - name: Prepare kernel source directory
+#   when: "'nwas_abap_ascs' in group_names"
+#   ansible.builtin.include_tasks:
+#     file: abap_kernel_prepare.yml
+#     apply:
+#       tags:
+#         - sap_patching_kernel_prepare
+#   tags:
+#     - sap_patching_kernel_prepare
+
+# # Execute this only on ONE host ideally on ASCS hosts or any other host with an ABAP instance
+# - name: Apply kernel
+#   when: "'nwas_abap_ascs' in group_names"
+#   ansible.builtin.include_tasks:
+#     file: abap_kernel_apply.yml
+#     apply:
+#       tags:
+#         - sap_patching_kernel_apply
+#   tags:
+#     - sap_patching_kernel_apply
+
+# # Execute only on nwas_abap* nodes
+# # IF this is executed on hana node, it will hang at the end waiting for non-existing ABAP instance to stop
+# - name: Restart the ABAP system
+#   when: "group_names | select('search', '^nwas_abap.*') | list | length > 0"
+#   ansible.builtin.include_tasks:
+#     file: abap_restart.yml
+#     apply:
+#       tags:
+#         - sap_patching_abap_restart
+#   vars:
+#     sap_patching_kernel_restart_strategy: rks
+#   tags:
+#     - sap_patching_abap_restart

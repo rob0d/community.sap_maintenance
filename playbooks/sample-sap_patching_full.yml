@@ -1,0 +1,57 @@
+---
+# This example will update ALL components - kernel, web disp, host agent, HDB client and HDB server
+# The execution plan includes stop/start steps where required.
+# For detailed explanation of each step please refer to the role documentation and to the other sample playbooks provided.
+# In this example each component has it's own source directory where the SAR files are expected to be present.
+#
+# Important: when combining multiple patching activities that require system restarts set the ABAP kernel restart strategy to 'bootstrap'
+# to avoid multiple restarts during the combined patching process.
+#
+# This plan will either prepare new versions of all components first - if they are present in the source directories
+# OR it will use already prepared versions based on the symlinks "ansible_to_apply" created during the prepare steps
+# (whether they were ran just now or sometimes in the past or created manually).
+
+- name: Update all supported components, stopping/starting the ABAP system only once as required
+  hosts: all
+  become: true
+  any_errors_fatal: true
+  vars:
+    sap_patching_sapcar_path: /install
+    sap_patching_sapcar_file_name: SAPCAR.EXE
+    sap_patching_sap_system_sid: S4H
+    sap_patching_wdp_system_sid: WDP
+    sap_patching_hdb_system_sid: HDB
+    sap_patching_execution_plan:
+    # Let's prepare all files first
+      - abap_kernel_prepare
+      - hdb_client_prepare
+      - hdb_server_prepare
+      - host_agent_prepare
+      - webdisp_prepare
+    # Host agent can be applied without stopping the system
+      - host_agent_apply_auto
+    # Web disp can be done next - requires web disp restart only
+      - webdisp_apply
+      - webdisp_restart
+    # Now apply the rest - stopping the ABAP system first
+      - abap_stop_system
+      - hdb_client_apply
+      - hdb_server_apply
+      - abap_kernel_apply
+      - abap_kernel_restart
+      - abap_start_system
+    sap_patching_kernel_restart_strategy: bootstrap   #IMPORTANT: use 'bootstrap' to avoid multiple system restarts during combined patching
+    sap_patching_kernel_prepare_version: autodetect
+    sap_patching_kernel_base: /install/kernel
+    sap_patching_kernel_source: "{{ sap_patching_kernel_base }}/source"
+    sap_patching_hdb_client_base: /install/hanadb/client
+    sap_patching_hdb_client_source: "{{ sap_patching_hdb_client_base }}/source"
+    sap_patching_hdb_server_base: /install/hanadb/server
+    sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
+    sap_patching_host_agent_base: /install/hostagents
+    sap_patching_host_agent_source: "{{ sap_patching_host_agent_base }}/source"
+    sap_patching_host_agent_autoupdate_path: /install/HostAgentUpdateDir
+    sap_patching_webdisp_base: /install/webdisp
+    sap_patching_webdisp_source: "{{ sap_patching_webdisp_base }}/source"
+  roles:
+    - sap_patching

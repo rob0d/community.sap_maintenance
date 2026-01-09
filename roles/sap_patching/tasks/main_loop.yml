@@ -1,0 +1,17 @@
+---
+# - name: Set task parameter variables
+#   set_fact:
+#     "{{ param_item.key }}": "{{ param_item.value }}"
+#   with_dict: "{{ sap_patching_exec_def[item].vars | default({}) }}"
+#   loop_control:
+#     loop_var: param_item
+
+- name: Executing step {{ sap_patching_step }}
+  #when: "sap_patching_exec_def[sap_patching_step].where | from_yaml"
+  ansible.builtin.include_tasks:
+    file: "{{ sap_patching_exec_def[sap_patching_step].file }}"
+  run_once: "{{ sap_patching_exec_def[sap_patching_step].run_once | default(false) }}"
+  vars:
+    sap_patching_params: "{{ sap_patching_exec_def[sap_patching_step].vars | default({}) }}"
+  tags:
+    - always

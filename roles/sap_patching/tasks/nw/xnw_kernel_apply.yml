@@ -1,0 +1,105 @@
+# Sanitasion and checks
+- name: Set {{ _sap_patching_kernel_to_apply }} to default if not defined or empty
+  set_fact:
+    _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_to_apply_symlink }}"
+  when: _sap_patching_kernel_to_apply is not defined or _sap_patching_kernel_to_apply | type_debug == "NoneType" or _sap_patching_kernel_to_apply | d('',true) |  length == 0
+
+- name: Prepend _sap_patching_kernel_base if _sap_patching_kernel_to_apply is not an absolute path
+  set_fact:
+    _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_base }}/{{ _sap_patching_kernel_to_apply }}"
+  when:
+    - _sap_patching_kernel_to_apply is defined
+    - not _sap_patching_kernel_to_apply.startswith('/')
+
+# - name: Append sap_patching_kernel_extracted to sap_patching_kernel_to_apply if not present
+#   set_fact:
+#     _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_to_apply }}/{{ sap_patching_kernel_extracted }}"
+#   when:
+#     - _sap_patching_kernel_to_apply is defined
+#     - _sap_patching_kernel_or_webdisp == "abap_kernel"
+#     - not _sap_patching_kernel_to_apply | regex_search('(^|/)' ~ sap_patching_kernel_extracted ~ '(/|$)')
+
+# Execute these checks only if the files to be applied are on shared folder directly accessible from the sap host
+- name: Execute checks of the {{ _sap_patching_kernel_or_webdisp }} files which will be applied in a moment
+  when: "_sap_patching_kernel_extracted_shared | bool"
+  block:
+  - name: Check that {{ _sap_patching_kernel_to_apply }} exists
+    stat: path="{{ _sap_patching_kernel_to_apply }}"
+    register: _sap_patching_kernel_to_apply_stat
+    failed_when: not _sap_patching_kernel_to_apply_stat.stat.exists
+    changed_when: false
+
+  - name: Ensure {{ _sap_patching_kernel_to_apply }} is a directory or symlink
+    assert:
+      that:
+        - _sap_patching_kernel_to_apply_stat.stat.isdir or _sap_patching_kernel_to_apply_stat.stat.islnk
+      fail_msg: "{{ _sap_patching_kernel_to_apply }} is not a directory or symlink"
+      success_msg: "{{ _sap_patching_kernel_to_apply }} is a directory or symlink"
+    changed_when: false
+
+  - name: Check the content of {{ _sap_patching_kernel_to_apply }}
+    find:
+      paths: "{{ _sap_patching_kernel_to_apply }}"
+      file_type: file
+    register: _sap_patching_kernel_to_apply_files
+    changed_when: false
+
+  - name: Ensure {{ _sap_patching_kernel_to_apply }} is not empty
+    assert:
+      that:
+        - _sap_patching_kernel_to_apply_files.matched | int > 0
+      fail_msg: "{{ _sap_patching_kernel_to_apply }} is empty, this is unexpected for correctly extracted kernel source"
+      success_msg: "{{ _sap_patching_kernel_to_apply }} is not empty"
+    changed_when: false
+
+- name: Set global exe Directory
+  set_fact:
+    sap_patching_kernel_global_exe: "/usr/sap/{{ _sap_patching_sap_system_sid | upper }}/SYS/exe/run"
+
+- name: Check that {{ sap_patching_kernel_global_exe }} exists
+  stat:
+    path: "{{ sap_patching_kernel_global_exe }}"
+  register: sap_patching_sapmnt_exe_stat
+  changed_when: false
+
+- name: Continue if the target directory is present (this will silently skip servers without kernel/webdisp present)
+  when:
+      - sap_patching_sapmnt_exe_stat.stat.exists
+      - sap_patching_sapmnt_exe_stat.stat.islnk or sap_patching_sapmnt_exe_stat.stat.isdir
+  block:
+
+# - name: Ensure {{ sap_patching_kernel_global_exe }} is a directory or a link
+#   assert:
+#     that:
+#       - sap_patching_sapmnt_exe_stat.stat.exists
+#       - sap_patching_sapmnt_exe_stat.stat.islnk or sap_patching_sapmnt_exe_stat.stat.isdir
+#     fail_msg: "{{ sap_patching_kernel_global_exe }} does not exist or is not a symlink/directory"
+#     success_msg: "{{ sap_patching_kernel_global_exe }} exists and is a symlink/directory"
+#   changed_when: false
+
+  - name: Check the content of {{ sap_patching_kernel_global_exe }}
+    find:
+      paths: "{{ sap_patching_kernel_global_exe }}"
+      file_type: file
+    register: sap_patching_sapmnt_exe_files
+    changed_when: false
+
+  - name: Ensure {{ sap_patching_kernel_global_exe }} is not empty
+    assert:
+      that:
+        - sap_patching_sapmnt_exe_files.matched | int > 0
+      fail_msg: "{{ sap_patching_kernel_global_exe }} is empty, this is unexpected for a correctly installed system"
+      success_msg: "{{ sap_patching_kernel_global_exe }} is not empty"
+    changed_when: false
+
+  # Execution
+  - name: Copy kernel files to global exe directory
+    copy:
+      src: "{{ _sap_patching_kernel_to_apply }}/"
+      dest: "{{ sap_patching_kernel_global_exe }}"
+      remote_src: "{{ _sap_patching_kernel_extracted_shared | bool }}"
+      owner: "{{ _sap_patching_sap_system_sid | lower }}adm"
+      group: sapsys
+      mode: '0755'
+      directory_mode: '0755'
+    changed_when: true

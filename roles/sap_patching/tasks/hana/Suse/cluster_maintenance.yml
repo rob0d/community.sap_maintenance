@@ -1,0 +1,5 @@
+---
+- name: Set cluster maintenance mode to '{{ __hdb_server_cluster_maintenance_op }}'
+  run_once: true
+  ansible.builtin.command: crm configure property maintenance-mode={{ __hdb_server_cluster_maintenance_op }}
+  become: true

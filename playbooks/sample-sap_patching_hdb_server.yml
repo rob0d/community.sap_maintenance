@@ -1,0 +1,107 @@
+---
+# Basic HANA DB server patching example
+# This will run both HANA DB server patching steps:
+# hdb_server_prepare
+#  It will look in {{ sap_patching_hdb_server_source }} for HANA DB server SAR files and use {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+#  to unpack the highest version into {{ sap_patching_hdb_server_base }}/extracted_<hdb_server_version> before applying the patch.
+#  It will use the HANA db server version that was provided in {{ sap_patching_hdb_server_source }} and set {{ sap_patching_hdb_server_to_apply }}
+# hdb_server_apply
+#  It will apply the HANA db server that was prepared in the previous step i.e. execute hdblcm with the correct parameters
+
+- name: Basic HANA DB server update using the lastest downloaded version
+  hosts: all
+  become: true
+  any_errors_fatal: true
+  vars:
+    sap_patching_hdb_system_sid: "{{ sap_system_sid }}"
+    sap_patching_hdb_server_base: /install/hanadb/server
+    sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
+    sap_patching_hdb_server_system_user_password: <system user password>
+    sap_patching_execution_plan:
+      - hdb_server_prepare
+      - hdb_server_apply
+
+  roles:
+    - sap_patching
+
+
+# This splits the HDB server update into preparations steps and the actual update step that is expected to be run during the downtime window
+- name: This will prepare the HDB server update and execute the update preparation steps upto the downtime point
+  hosts: all
+  become: true
+  any_errors_fatal: true
+  vars:
+    sap_patching_hdb_system_sid: "{{ sap_system_sid }}"
+    sap_patching_hdb_server_base: /install/hanadb/server
+    sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
+    sap_patching_hdb_server_system_user_password: <system user password>
+    sap_patching_execution_plan:
+      - hdb_server_prepare
+      - hdb_server_update_prepare
+
+  roles:
+    - sap_patching
+
+
+- name: This will apply the HDB server update during the downtime window
+  hosts: all
+  become: true
+  any_errors_fatal: true
+  vars:
+    sap_patching_hdb_system_sid: "{{ sap_system_sid }}"
+    sap_patching_hdb_server_base: /install/hanadb/server
+    sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
+    sap_patching_hdb_server_system_user_password: <system user password>
+    sap_patching_execution_plan:
+      - hdb_server_apply
+
+  roles:
+    - sap_patching
+
+
+# This will run the full HDB server update in one go - preparation and application as the first example above.
+# In addition it will acticate/deactivate the SYSTEM user before/after the update.
+- name: Full HANA DB server update including SYSTEM user activation/deactivation
+  hosts: all
+  become: true
+  any_errors_fatal: true
+  vars:
+    sap_patching_hdb_system_sid: "{{ sap_system_sid }}"
+    sap_patching_hdb_server_base: /install/hanadb/server
+    sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
+    sap_patching_hdb_server_system_user_password: <system user password>
+    sap_patching_hdb_server_activate_system_user: true
+    sap_patching_hdb_server_activate_admin_user: <another super users>
+    sap_patching_hdb_server_activate_admin_password: <another super user password>
+    # sap_patching_hdb_server_activate_admin_userstore_key: HDB_SYSTEMDB
+    sap_patching_execution_plan:
+      - hdb_server_prepare
+      - hdb_server_apply
+
+  roles:
+    - sap_patching
+
+
+# This will run the full HDB server update in one go - preparation and application as the first example above.
+# In addition it will acticate/deactivate the SYSTEM user before/after the update AND
+# it will also deal with a clustered HANA DB setup.
+- name: Full HANA DB server update including SYSTEM user activation/deactivation
+  hosts: all
+  become: true
+  any_errors_fatal: true
+  vars:
+    sap_patching_hdb_system_sid: "{{ sap_system_sid }}"
+    sap_patching_hdb_server_base: /install/hanadb/server
+    sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
+    sap_patching_hdb_server_system_user_password: <system user password>
+    sap_patching_hdb_server_activate_system_user: true
+    sap_patching_hdb_server_activate_admin_user: <another super users>
+    sap_patching_hdb_server_activate_admin_password: <another super user password>
+    # sap_patching_hdb_server_activate_admin_userstore_key: HDB_SYSTEMDB
+    sap_patching_hdb_server_is_clustered: true
+    sap_patching_execution_plan:
+      - hdb_server_prepare
+      - hdb_server_apply
+
+  roles:
+    - sap_patching

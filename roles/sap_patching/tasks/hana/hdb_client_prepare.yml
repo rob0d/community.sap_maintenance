@@ -1,0 +1,116 @@
+---
+# Search for HDB client SAR files and extract support package number
+- name: Check if HDB client source directory contains .sar files (case-insensitive)
+  find:
+    paths: "{{ sap_patching_hdb_client_source }}"
+    patterns: ['(?i)IMDB_CLIENT.*\.SAR$']
+    use_regex: true
+    file_type: file
+    recurse: no
+  register: sap_patching_hdb_client_source_dir_content
+
+# Only proceed if we've found some SAR files
+- block:
+  # In case there are more than one SAR files, get the one with the highest version number
+  - name: Get the highest version of HDB client SAR file
+    set_fact:
+      sap_patching_hdb_client_sar: >-
+        {{
+          sap_patching_hdb_client_source_dir_content.files
+          | map(attribute='path')
+          | map('basename')
+          | sort
+          | list
+          | last
+        }}
+
+  - name: Check availability of SAPCAR - {{ sap_patching_sapcar_path + '/' + sap_patching_sapcar_file_name }}
+    ansible.builtin.stat:
+      path: "{{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
+    register: sap_patching_sapcar_file_name_stat
+    failed_when: not sap_patching_sapcar_file_name_stat.stat.exists
+
+  - name: Extract the client version from SAR file
+    set_fact:
+      sap_patching_hdb_client_version: "{{ sap_patching_hdb_client_sar | regex_search('(?i)IMDB_CLIENT([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
+
+  - name: Set the target HDB client directory variable
+    set_fact:
+      sap_patching_hdb_client_extract_target: "{{ sap_patching_hdb_client_base }}/{{ sap_patching_hdb_client_extracted }}_{{ sap_patching_hdb_client_version }}"
+
+  - name: Create extraction target HDB client directory
+    file:
+      path: "{{ sap_patching_hdb_client_extract_target }}"
+      state: directory
+      mode: '0755'
+      owner: "{{ sap_patching_file_owner }}"
+      group: "{{ sap_patching_file_group }}"
+    when:
+     - sap_patching_hdb_client_version != ''
+
+  - name: Check target HDB client directory
+    ansible.builtin.stat:
+      path: "{{ sap_patching_hdb_client_extract_target }}"
+    register: sap_patching_hdb_client_extract_target_stat
+
+  - name: Assert that target HDB client directory exists and is a directory
+    ansible.builtin.assert:
+      that:
+        - sap_patching_hdb_client_extract_target is defined
+        - sap_patching_hdb_client_extract_target_stat.stat.exists
+        - sap_patching_hdb_client_extract_target_stat.stat.isdir
+      fail_msg: "Target HDB client directory '{{ sap_patching_hdb_client_extract_target }}' does not exist or is not a directory."
+      success_msg: "Target HDB client directory '{{ sap_patching_hdb_client_extract_target }}' exists and is a directory."
+
+  # Use shell globbing to move file in case they are not in capitals as expected
+  - name: Move all files from {{ sap_patching_hdb_client_source }} to {{ sap_patching_hdb_client_base }}
+    ansible.builtin.shell: |
+      mv '{{ sap_patching_hdb_client_source }}'/[Ii][Mm][Dd][Bb]_[Cc][Ll][Ii][Ee][Nn][Tt]* '{{ sap_patching_hdb_client_base }}'
+    when:
+      - sap_patching_hdb_client_base is defined
+      - sap_patching_hdb_client_source is defined
+      - sap_patching_hdb_client_base != sap_patching_hdb_client_source
+
+  - name: Extract HDB client SAR file to the target
+    ansible.builtin.command: >-
+      {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+      -xvf {{ sap_patching_hdb_client_base }}/{{ sap_patching_hdb_client_sar }}
+      -R "{{ sap_patching_hdb_client_extract_target }}"
+      -manifest SIGNATURE.SMF
+    register: sap_patching_extract_result
+    args:
+      chdir: "{{ sap_patching_hdb_client_extract_target }}"
+    become: true
+    become_user: "{{ sap_patching_file_owner }}"
+    changed_when: "'SAPCAR: processing archive' in sap_patching_extract_result.stdout"
+    failed_when: sap_patching_extract_result.rc != 0
+
+  - name: Check that HDB client extracted path exists and is a directory
+    ansible.builtin.stat:
+      path: "{{ sap_patching_hdb_client_extract_target }}/SAP_HANA_CLIENT/client"
+    register: sap_patching_hdb_client_extracted_client_dir_stat
+
+  - name: Assert HDB client extracted path exists and is a directory
+    ansible.builtin.assert:
+      that:
+        - sap_patching_hdb_client_extracted_client_dir_stat.stat.exists
+        - sap_patching_hdb_client_extracted_client_dir_stat.stat.isdir
+      fail_msg: "HDB client directory '{{ sap_patching_hdb_client_extract_target }}/SAP_HANA_CLIENT/client' does not exist or is not a directory."
+      success_msg: "HDB client directory '{{ sap_patching_hdb_client_extract_target }}/SAP_HANA_CLIENT/client' exists and is a directory."
+
+  - name: Ensure symbolic link for HDB client directory is correct
+    file:
+      src: "{{ sap_patching_hdb_client_extract_target }}/SAP_HANA_CLIENT"
+      dest: "{{ sap_patching_hdb_client_base }}/{{ sap_patching_hdb_client_to_apply_symlink }}"
+      state: link
+      force: true
+      owner: "{{ sap_patching_file_owner }}"
+      group: "{{ sap_patching_file_group }}"
+    become: true
+    become_user: "{{ sap_patching_file_owner }}"
+
+  - name: Set sap_patching_hdb_client_to_apply variable for use in later tasks
+    set_fact:
+      sap_patching_hdb_client_to_apply: "{{ sap_patching_hdb_client_extract_target }}/SAP_HANA_CLIENT"
+
+  when: sap_patching_hdb_client_source_dir_content.matched | d(0) > 0
