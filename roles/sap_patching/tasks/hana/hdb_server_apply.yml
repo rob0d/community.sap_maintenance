@@ -220,7 +220,7 @@
       when:
        - _sap_patching_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_sites | last | first ] == ansible_hostname
        - sap_patching_hdb_server_activate_system_user | bool
-       - sap_patching_params.update_mode != 'prepare'
+       #- sap_patching_params.update_mode != 'prepare'
       ansible.builtin.command: >-
         /usr/sap/{{ sap_patching_hdb_system_sid }}/SYS/exe/hdb/hdbsql -d SYSTEMDB -quiet -x -a
         {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key if sap_patching_hdb_server_activate_admin_userstore_key | d('',true) | length > 0 else '' }}
@@ -265,7 +265,7 @@
     - name: Deactivate HANA SYSTEM user if required (HSR)
       when:
        - sap_patching_hdb_server_activate_system_user | bool
-       - sap_patching_params.update_mode != 'prepare'
+       #- sap_patching_params.update_mode != 'prepare'
       block:
 
       - name: Check System Replication Status - after patching (HSR)
