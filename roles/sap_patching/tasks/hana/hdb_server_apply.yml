@@ -54,7 +54,7 @@
       src: "{{ sap_patching_hdb_server_to_apply }}/"
       dest: "{{ sap_patching_hdb_server_extracted_local_path }}"
       remote_src: "{{ sap_patching_hdb_server_extracted_shared | bool }}"
-      owner: "{{ sap_patching_sap_system_sid | lower }}adm"
+      owner: "{{ sap_patching_hdb_system_sid | lower }}adm"
       group: sapsys
       mode: '0755'
       directory_mode: '0755'
@@ -229,7 +229,7 @@
         "ALTER USER {{ sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
       register: sap_patching_hdb_server_activate_system_output
       become: true
-      become_user: "{{ sap_patching_sap_system_sid | lower }}adm"
+      become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
       changed_when: "sap_patching_hdb_server_activate_system_output.rc == 0"
       failed_when: "'ERROR' in sap_patching_hdb_server_activate_system_output.stderr or sap_patching_hdb_server_activate_system_output.rc != 0"
 
@@ -329,7 +329,7 @@
           "ALTER USER {{ sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else 'SYSTEM' }} DEACTIVATE"
         register: sap_patching_hdb_server_deactivate_system_output
         become: true
-        become_user: "{{ sap_patching_sap_system_sid | lower }}adm"
+        become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
         changed_when: "sap_patching_hdb_server_deactivate_system_output.rc == 0"
         failed_when: "'ERROR' in sap_patching_hdb_server_deactivate_system_output.stderr or sap_patching_hdb_server_deactivate_system_output.rc != 0"
 
@@ -350,7 +350,7 @@
         "ALTER USER {{ sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
       register: sap_patching_hdb_server_activate_system_output
       become: true
-      become_user: "{{ sap_patching_sap_system_sid | lower }}adm"
+      become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
       changed_when: "sap_patching_hdb_server_activate_system_output.rc == 0"
       failed_when: "'ERROR' in sap_patching_hdb_server_activate_system_output.stderr or sap_patching_hdb_server_activate_system_output.rc != 0"
 
@@ -373,6 +373,6 @@
         "ALTER USER {{ sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else 'SYSTEM' }} DEACTIVATE"
       register: sap_patching_hdb_server_deactivate_system_output
       become: true
-      become_user: "{{ sap_patching_sap_system_sid | lower }}adm"
+      become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
       changed_when: "sap_patching_hdb_server_deactivate_system_output.rc == 0"
       failed_when: "'ERROR' in sap_patching_hdb_server_deactivate_system_output.stderr or sap_patching_hdb_server_deactivate_system_output.rc != 0"
