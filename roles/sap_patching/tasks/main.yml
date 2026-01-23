@@ -30,4 +30,4 @@
   loop_control:
     loop_var: sap_patching_step
     label: "Executing step: {{ sap_patching_step }}"
-  #when: "sap_patching_exec_def[sap_patching_step].where | from_yaml"
+  # when: "sap_patching_exec_def[sap_patching_step].where | from_yaml"

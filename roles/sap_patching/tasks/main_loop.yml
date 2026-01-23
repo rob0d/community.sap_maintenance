@@ -7,7 +7,7 @@
 #     loop_var: param_item
 
 - name: Executing step {{ sap_patching_step }}
-  #when: "sap_patching_exec_def[sap_patching_step].where | from_yaml"
+  # when: "sap_patching_exec_def[sap_patching_step].where | from_yaml"
   ansible.builtin.include_tasks:
     file: "{{ sap_patching_exec_def[sap_patching_step].file }}"
   run_once: "{{ sap_patching_exec_def[sap_patching_step].run_once | default(false) }}"

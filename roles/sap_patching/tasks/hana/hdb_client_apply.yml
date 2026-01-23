@@ -36,12 +36,6 @@
   register: sap_patching_hdb_client_install_stat
   changed_when: false
 
-# This is to prevent issues due to run_once: true on hosts with no HDB server installed
-- name: Stop executing on hosts without HDB client installed
-  ansible.builtin.meta: end_host
-  when:
-    - not sap_patching_hdb_client_install_stat.stat.exists
-
 - name: Continue if the target directory is present (this will silently skip servers without HDB client installed)
   when:
   - sap_patching_hdb_client_install_stat.stat.exists

@@ -46,7 +46,6 @@
   #_sap_patching_hdb_hdblcm_configfile
 
   # Execute update using hdblcm
-  # TEMOPORARILY COMMENTED OUT FOR TESTING PURPOSES
   - name: Update HANA DB server
     ansible.builtin.command: >-
       '{{ sap_patching_hdb_server_to_apply }}/hdblcm' {{ sap_patching_hdb_server_hdblcm_action }}
@@ -59,22 +58,6 @@
     become: true
     changed_when: "('SAP HANA Database components updated' in sap_patching_hdb_server_hdblcm_output.stdout or 'Update of SAP HANA Database components prepared' in sap_patching_hdb_server_hdblcm_output.stdout) and sap_patching_hdb_server_hdblcm_output.rc == 0"
     failed_when: "'failed' in sap_patching_hdb_server_hdblcm_output.stderr or sap_patching_hdb_server_hdblcm_output.rc != 0"
-
-  #Update of SAP HANA Database components prepared
-      # {{ '--system_user=' + sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else '' }}
-      # --system_user_password='{{ sap_patching_hdb_server_system_user_password }}'
-
-  # If clustered and not in prepare mode then turn off cluster maintenance mode
-  # 'false/true' are strings, not booleans
-  - name: "Set cluster maintenance mode OFF (if clustered)"
-    run_once: true
-    vars:
-      __hdb_server_cluster_maintenance_op: 'false'
-    ansible.builtin.include_tasks:
-      file: "{{ ansible_facts['os_family'] }}/cluster_maintenance.yml"
-    when:
-    - sap_patching_hdb_server_is_clustered | bool
-    - sap_patching_params.update_mode != 'prepare'
 
   # We are inside the HSR loop, but the primary/master site may have switched if we are in a cluster and patching the primary/secondary pair
   # So we need to re-check the HSR status and make sure we know who is the current primary
@@ -213,6 +196,29 @@
           delay: 20
           changed_when: false
           failed_when: _sap_patching_hdb_hsr_srstatus_hdbcons.stdout | length == 0
+
+  # If clustered and not in prepare mode then turn off cluster maintenance mode
+  # 'false/true' are strings, not booleans
+  - name: "Set cluster maintenance mode OFF (if clustered)"
+    run_once: true
+    vars:
+      __hdb_server_cluster_maintenance_op: 'false'
+    ansible.builtin.include_tasks:
+      file: "{{ ansible_facts['os_family'] }}/cluster_maintenance.yml"
+    when:
+    - sap_patching_hdb_server_is_clustered | bool
+    - sap_patching_params.update_mode != 'prepare'
+
+  # TODO: Ideally we check that the resource is fully running before trying to relocate it, but issue is with
+  # doing it reliably across RHEL/SLES and when cluster hasn't been created using SAP LL roles.
+  # see community.general.pacemaker_info
+  # So for now we wait for 1 minute to allow the resource to stabilise (it shouldn't need much as we only turned off the maintenance mode).
+  - name: Wait 60 seconds for HANADB clone resource to stabilise (if clustered)
+    ansible.builtin.wait_for:
+      timeout: 60
+    when:
+    - sap_patching_hdb_server_is_clustered | bool
+    - sap_patching_params.update_mode != 'prepare'
 
   # if cluster is on, initiate switchover after patching
   # check that it hasn't been done already

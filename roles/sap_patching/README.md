@@ -72,7 +72,7 @@ sap_patching_execution_plan:
 
 The behaviour of each step can be controlled using task specific parameters described below.
 
-## Prerequisites and Parameters
+## Prerequisites and Common Parameters
 
 ### Prerequisites
 
@@ -190,13 +190,11 @@ The following steps are available:
   - Step name `sap_patching_hdb_server_update_prepare`.
   - Performs all update preparation steps upto the downtime phase.
   - Optional step which reduces the downtime duration.
-  - Both local and shared server installations are supported.
 - **Server Application:**
   - Step name `hdb_server_apply`.
   - Updates the HANA DB server on target systems.
   - If update preparation was executed beforehand, it will automatically continue with the downtime phase of the update.
   - If update preparation was NOT executed, it will automatically perform the full update/upgrade process.
-  - Both local and shared server installations are supported.
 
 ### Variables for HANA DB server patching
 
@@ -213,6 +211,16 @@ The following steps are available:
 - `sap_patching_hdb_server_clu_hdb_resource_name`: Name of the cluster resource for HDB server (used to relocate and put the resource in maintenance mode during patching). If SAP LinuxLab role `sap_ha_pacemaker_cluster` was used to setup the cluster AND HANA instance number is 00, this doesn't need to be setup as the default value matches the naming convention used by the role. The default value is: "cln_SAPHana_{{ sap_patching_hdb_system_sid | upper }}_HDB00".
 - `sap_patching_hdb_server_extracted_shared`: If true, the extracted HDB server source files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step. If false, the extracted HDB server source files will be copied from the Ansible controller to the target host.
 - `sap_patching_hdb_server_extracted_local_path`: Where to store a local copy of extracted HDB server files as they must be present locally in order to run hdblcm.
+- `sap_patching_hdb_server_cf_*`: Variables which will be injected into the HDBLCM configuration file (see below).
+
+### HDBLCM Configuration file
+
+Dynamically generated configuration file is used to control how HDBLCM is behaving. This is very similar to the behaviour of ```community.sap_install.sap_hana_install role```. The configuration file is created in folder `ansible_templates/<github_hash>/<hostname>_hdblcm_configfile.*`.  Where:
+
+- `<github_hash>` is basically a unique version of the HDBLCM. This changes with each HANA DB Server patch and it will force generation of a new config file even if one existed for a previous version of HDBLCM.
+- `<hostname>_hdblcm_configfile.*` represent several files which start with the HANA DB server hostname. These are used to generate the config file (suffix .cfg) which is then passed to HDBLCM during execution.
+
+The configuration file is generated only when it doesn't exist. This is inline with ```community.sap_install.sap_hana_install role``` behaviour. This also allows users to define their own additional variables in format `sap_patching_hdb_server_cf_<configfile_variable>` which will replace the default values in HBBLCM configuration file. This can be used to alter the behaviour of HDBLCM during the update/upgrade. For more details see the comments in `tasks/hana/hdblcm_configfile.yml`.
 
 ### HANA DB Server Usage
 
