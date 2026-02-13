@@ -50,7 +50,7 @@
     ansible.builtin.command: >-
       '{{ sap_patching_hdb_server_to_apply }}/hdblcm' {{ sap_patching_hdb_server_hdblcm_action }}
       -s {{ sap_patching_hdb_system_sid }} --batch
-      {{ '--system_user=' + sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else '' }}
+      {{ '--system_user=' + sap_patching_hdb_server_cf_system_user if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else '' }}
       --configfile={{ _sap_patching_hdb_hdblcm_configfile }}
     register: sap_patching_hdb_server_hdblcm_output
     # args:

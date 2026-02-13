@@ -226,7 +226,7 @@
         {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key if sap_patching_hdb_server_activate_admin_userstore_key | d('',true) | length > 0 else '' }}
         {{ '-u ' + sap_patching_hdb_server_activate_admin_user if sap_patching_hdb_server_activate_admin_user | d('',true) | length > 0 else '' }}
         {{ '-p ''' + sap_patching_hdb_server_activate_admin_password + '''' if sap_patching_hdb_server_activate_admin_password | d('',true) | length > 0 else '' }}
-        "ALTER USER {{ sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
+        "ALTER USER {{ sap_patching_hdb_server_cf_system_user if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
       register: sap_patching_hdb_server_activate_system_output
       become: true
       become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
@@ -326,7 +326,7 @@
           {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key if sap_patching_hdb_server_activate_admin_userstore_key | d('',true) | length > 0 else '' }}
           {{ '-u ' + sap_patching_hdb_server_activate_admin_user if sap_patching_hdb_server_activate_admin_user | d('',true) | length > 0 else '' }}
           {{ '-p '''  + sap_patching_hdb_server_activate_admin_password + '''' if sap_patching_hdb_server_activate_admin_password | d('',true) | length > 0 else '' }}
-          "ALTER USER {{ sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else 'SYSTEM' }} DEACTIVATE"
+          "ALTER USER {{ sap_patching_hdb_server_cf_system_user if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} DEACTIVATE"
         register: sap_patching_hdb_server_deactivate_system_output
         become: true
         become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
@@ -347,7 +347,7 @@
         {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key if sap_patching_hdb_server_activate_admin_userstore_key | d('',true) | length > 0 else '' }}
         {{ '-u ' + sap_patching_hdb_server_activate_admin_user if sap_patching_hdb_server_activate_admin_user | d('',true) | length > 0 else '' }}
         {{ '-p '''  + sap_patching_hdb_server_activate_admin_password + '''' if sap_patching_hdb_server_activate_admin_password | d('',true) | length > 0 else '' }}
-        "ALTER USER {{ sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
+        "ALTER USER {{ sap_patching_hdb_server_cf_system_user if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
       register: sap_patching_hdb_server_activate_system_output
       become: true
       become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
@@ -370,7 +370,7 @@
         {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key if sap_patching_hdb_server_activate_admin_userstore_key | d('',true) | length > 0 else '' }}
         {{ '-u ' + sap_patching_hdb_server_activate_admin_user if sap_patching_hdb_server_activate_admin_user | d('',true) | length > 0 else '' }}
         {{ '-p '''  + sap_patching_hdb_server_activate_admin_password + '''' if sap_patching_hdb_server_activate_admin_password | d('',true) | length > 0 else '' }}
-        "ALTER USER {{ sap_patching_hdb_server_system_user if sap_patching_hdb_server_system_user | d('',true) | length > 0 else 'SYSTEM' }} DEACTIVATE"
+        "ALTER USER {{ sap_patching_hdb_server_cf_system_user if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} DEACTIVATE"
       register: sap_patching_hdb_server_deactivate_system_output
       become: true
       become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"

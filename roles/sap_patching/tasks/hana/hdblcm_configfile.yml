@@ -17,7 +17,7 @@
 - name: Set config file location fact (non-HSR)
   when: "'mode=none' in _sap_patching_hdb_hsr_srstate.stdout"
   ansible.builtin.set_fact:
-    _sap_patching_hdb_hdblcm_configfile: "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ ansible_hostname }}_hdblcm_configfile.cfg"
+    _sap_patching_hdb_hdblcm_configfile: "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_hdb_hdblcm_git_hash_version.stdout }}/{{ ansible_hostname }}_hdblcm_configfile.cfg"
 
 
 - name: Create the hdblcm configfile directory '{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_hdb_hdblcm_git_hash_version.stdout }}'
