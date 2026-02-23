@@ -1,256 +1,258 @@
 ---
 # Search for kernel SAR files and extract support package number
 - name: Check if kernel source directory contains .sar files (case-insensitive)
-  find:
+  ansible.bultin.find:
     paths: "{{ sap_patching_kernel_source }}"
     patterns: ['(?i).*\.sar$']
     use_regex: true
     file_type: file
-    recurse: no
+    recurse: false
   register: sap_patching_kernel_source_dir_content
 
 # Only proceed if we've found some SAR files
-- block:
-  - name: Check for duplicates in source SAR files
-    ansible.builtin.assert:
-      that:
-       - sap_patching_kernel_source_dir_content.files | map(attribute='path') | map('basename') | map('regex_search', '^(.+)_', '\\1') | map('first') | community.general.counter() | dict2items | selectattr('value', '>', 1) | length == 0
-      fail_msg: >
-        Duplicate kernel SAR files found: {{ sap_patching_kernel_source_dir_content.files | map(attribute='path') | map('basename') | map('regex_search', '^(.+)_', '\1') | map('first') | community.general.counter() | dict2items | selectattr('value', '>', 1) | map(attribute='key') | join(', ') }}
-      success_msg: "Good, no duplicate kernel SAR files found."
-
-  - name: Check availability of SAPCAR - {{ sap_patching_sapcar_path + '/' + sap_patching_sapcar_file_name }}
-    ansible.builtin.stat:
-      path: "{{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
-    register: sap_patching_sapcar_file_name_stat
-    failed_when: not sap_patching_sapcar_file_name_stat.stat.exists
-
-  - name: Find SAPEXE* or dw* SAR files
-    find:
-      paths: "{{ sap_patching_kernel_source }}"
-      patterns:
-        - '(?i)SAPEXE_\d+-.*\.SAR'
-        - '(?i)SAPEXEDB_\d+-.*\.SAR'
-        - '(?i)dw_\d+-.*\.SAR'
-      use_regex: true
-      file_type: file
-    register: sap_patching_kernel_exedw_files
-
-  # - name: debug sap_patching_kernel_exedw_files.matched
-  #   debug:
-  #     var: sap_patching_kernel_exedw_files.matched
-
-  - name: Check/Set append to mode - default is off
-    set_fact:
-      sap_patching_kernel_appendto_mode: false
-
-  - name: Check/Set append to mode - on if required
-    set_fact:
-      sap_patching_kernel_appendto_mode: true
-    when:
-      - sap_patching_kernel_exedw_files.matched | int == 0
-      - sap_patching_kernel_prepare_appendto_version | d('', true) | length > 0
-      - sap_patching_kernel_prepare_appendto_version is match("\\d+p\\d+")
-
-  - name: Fail if sap_patching_kernel_prepare_appendto_version is required
-    ansible.builtin.fail:
-      msg: >
-        Can't find SAPEXE or dw SAR files. Either parameter sap_patching_kernel_prepare_appendto_version should be set (currently: {{ sap_patching_kernel_prepare_appendto_version }}) or SAPEXE*/dw* SAR files need to be present.
-    when:
-      - sap_patching_kernel_exedw_files.matched | int == 0
-      - not sap_patching_kernel_appendto_mode | bool
-
-  - name: Fail if append mode is on but SAPEXE/dw SAR files are present
-    ansible.builtin.fail:
-      msg: >
-        Parameter sap_patching_kernel_prepare_appendto_version is set({{ sap_patching_kernel_prepare_appendto_version }}), but SAPEXE*/dw* SAR files are present. Either unset sap_patching_kernel_prepare_appendto_version or remove the SAPEXE*/dw* SAR files.
-    when:
-      - sap_patching_kernel_exedw_files.matched | int > 0
-      - sap_patching_kernel_appendto_mode | bool
-
-  - name: Extract the highest patch number from file names
-    set_fact:
-      sap_patching_kernel_pn: "{{ sap_patching_kernel_exedw_files.files | map(attribute='path') | map('basename') | map('regex_search', '_(\\d+)-', '\\1') | map('first') | map('int') | sort  | last }}"
-    when: not sap_patching_kernel_appendto_mode | bool
-
-  - name: Extract target patch number from append to version - append mode
-    set_fact:
-      sap_patching_kernel_pn: "{{ sap_patching_kernel_prepare_appendto_version | regex_search('^\\d+p(\\d+)$', '\\1') | first | int }}"
-    when: sap_patching_kernel_appendto_mode | bool
-
-  - name: Set the target kernel SP directory variable - autodetect mode
-    set_fact:
-      sap_patching_kernel_extract_target: "{{ sap_patching_kernel_base }}/kTMPp{{ sap_patching_kernel_pn }}"
-    when:
-     - sap_patching_kernel_prepare_version | lower == 'autodetect'
-     - not sap_patching_kernel_appendto_mode | bool
-
-  - name: Set the target kernel SP directory variable - manual mode
-    set_fact:
-      sap_patching_kernel_extract_target: "{{ sap_patching_kernel_base }}/k{{ sap_patching_kernel_prepare_version }}p{{ sap_patching_kernel_pn }}"
-    when:
-     - sap_patching_kernel_prepare_version | lower != 'autodetect'
-     - not sap_patching_kernel_appendto_mode | bool
-
-  - name: Set the target kernel SP directory variable - append mode
-    set_fact:
-      sap_patching_kernel_extract_target: "{{ sap_patching_kernel_base }}/k{{ sap_patching_kernel_prepare_appendto_version}}"
-    when: sap_patching_kernel_appendto_mode | bool
-
-  - name: Create a target kernel SP directory
-    file:
-      path: "{{ sap_patching_kernel_extract_target }}"
-      state: directory
-      mode: '0755'
-      owner: "{{ sap_patching_file_owner }}"
-      group: "{{ sap_patching_file_group }}"
-    when:
-     - not sap_patching_kernel_appendto_mode | bool
-     - sap_patching_kernel_pn != ''
-
-  - name: Check target kernel directory
-    ansible.builtin.stat:
-      path: "{{ sap_patching_kernel_extract_target }}"
-    register: sap_patching_kernel_extract_target_stat
-
-  - name: Assert that target kernel directory exists and is a directory
-    ansible.builtin.assert:
-      that:
-        - sap_patching_kernel_extract_target is defined
-        - sap_patching_kernel_extract_target_stat.stat.exists
-        - sap_patching_kernel_extract_target_stat.stat.isdir
-      fail_msg: "Target kernel SP directory '{{ sap_patching_kernel_extract_target }}' does not exist or is not a directory."
-      success_msg: "Target kernel SP directory '{{ sap_patching_kernel_extract_target }}' exists and is a directory."
-
-  - name: Move all files from {{ sap_patching_kernel_source }} to {{ sap_patching_kernel_extract_target }}
-    ansible.builtin.shell: |
-      mv '{{ sap_patching_kernel_source }}'/* '{{ sap_patching_kernel_extract_target }}'
-    when:
-      - sap_patching_kernel_extract_target is defined
-      - sap_patching_kernel_source is defined
-      - sap_patching_kernel_extract_target != sap_patching_kernel_source
-
-  - name: Prepare directory for kernel extraction
-    file:
-      path: "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
-      state: directory
-      mode: '0755'
-      owner: "{{ sap_patching_file_owner }}"
-      group: "{{ sap_patching_file_group }}"
-    when: not sap_patching_kernel_appendto_mode | bool
-
-  - name: Prepare ordered list of kernel SAR files (SAPEXE*, SAPEXEDB* first)
-    set_fact:
-      ordered_kernel_sar_files: >-
-        {{
-          (
-            sap_patching_kernel_source_dir_content.files
-            | selectattr('path', 'search', '(?i)SAPEXE_.*\.SAR')
-            | list
-            +
-            sap_patching_kernel_source_dir_content.files
-            | selectattr('path', 'search', '(?i)SAPEXEDB_.*\.SAR')
-            | list
-            +
-            sap_patching_kernel_source_dir_content.files
-            | rejectattr('path', 'search', '(?i)SAPEXE_.*\.SAR')
-            | rejectattr('path', 'search', '(?i)SAPEXEDB_.*\.SAR')
-            | list
-          )
-        }}
-
-  - name: Extract kernel SAR files in the correct order
-    ansible.builtin.command: >-
-      {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
-      -xvf {{ item.path | basename }}
-      -R "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
-      -manifest SIGNATURE.SMF
-    register: sap_patching_extract_result
-    args:
-      chdir: "{{ sap_patching_kernel_extract_target }}"
-    become: true
-    become_user: "{{ sap_patching_file_owner }}"
-    changed_when: "'SAPCAR: processing archive' in sap_patching_extract_result.stdout"
-    loop: "{{ ordered_kernel_sar_files }}"
-    loop_control:
-      label: "{{ item.path | basename }}"
-
-
-  - name: Set LD_LIBRARY_PATH for kernel extraction
-    set_fact:
-      sap_patching_ld_library_path: "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
-
-  - name: Check if both SAPEXE_.*\.SAR and SAPEXEDB_.*\.SAR are present and set delta suffix+LD_LIBRARY_PATH if so - autodetect mode
-    set_fact:
-      sap_patching_kernel_delta_suffix: "-delta"
-      sap_patching_ld_library_path: "/usr/sap/{{ sap_patching_sap_system_sid | upper }}/SYS/exe/run/"
-    when:
-      - sap_patching_kernel_prepare_version | lower == 'autodetect'
-      - not sap_patching_kernel_appendto_mode | bool
-      - not ordered_kernel_sar_files | selectattr('path', 'search', '(?i)SAPEXE_.*\.SAR') | list | length > 0
-      - not ordered_kernel_sar_files | selectattr('path', 'search', '(?i)SAPEXEDB_.*\.SAR') | list | length > 0
-
-  #Not going to use sapcontrol -nr 00 -function GetVersionInfo
-  - name: Check kernel release and patch number using disp+work
-    ansible.builtin.shell: >
-      {{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}/disp+work | grep 'kernel release\|patch number'
-    environment:
-      LD_LIBRARY_PATH: "{{ sap_patching_ld_library_path }}"
-    register: sap_patching_kernel_release_patch_output
-    changed_when: false
-    failed_when: sap_patching_kernel_release_patch_output.rc != 0
-
-  - name: Extract kernel release and patch number from disp+work output
-    set_fact:
-      sap_patching_kernel_release_dw: "{{ sap_patching_kernel_release_patch_output.stdout_lines | select('search', '^kernel release') | list | first | regex_search('kernel release\\s+(\\d+)', '\\1') | first }}"
-      sap_patching_kernel_patch_dw: "{{ sap_patching_kernel_release_patch_output.stdout_lines | select('search', '^patch number') | list | first | regex_search('patch number\\s+(\\d+)', '\\1') | first }}"
-
-  - name: Assert expected kernel patch number matches extracted SAR patch number
-    ansible.builtin.assert:
-      that:
-        - (sap_patching_kernel_patch_dw | int) == (sap_patching_kernel_pn | int)
-      fail_msg: "Kernel patch number from disp+work ({{ sap_patching_kernel_patch_dw }}) does not match expected SAR patch number ({{ sap_patching_kernel_pn }})."
-
-  - name: Rename kernel directory - autodetect mode
-    ansible.builtin.command: >
-      mv "{{ sap_patching_kernel_base }}/kTMPp{{ sap_patching_kernel_pn }}"
-        "{{ sap_patching_kernel_base }}/k{{ sap_patching_kernel_release_dw }}p{{ sap_patching_kernel_pn }}{{ sap_patching_kernel_delta_suffix | default('') }}"
-    when:
-     - sap_patching_kernel_prepare_version | lower == 'autodetect'
-     - not sap_patching_kernel_appendto_mode | bool
-
-  - name: Update target kernel SP directory variable after rename - autodetect mode
-    set_fact:
-      sap_patching_kernel_extract_target: "{{ sap_patching_kernel_base }}/k{{ sap_patching_kernel_release_dw }}p{{ sap_patching_kernel_pn }}{{ sap_patching_kernel_delta_suffix | default('') }}"
-    when:
-     - sap_patching_kernel_prepare_version | lower == 'autodetect'
-     - not sap_patching_kernel_appendto_mode | bool
-
-  - name: Assert kernel release matches expected version - manual mode
-    ansible.builtin.assert:
-      that:
-        - sap_patching_kernel_release_dw | int  == sap_patching_kernel_prepare_version | int
-      fail_msg: "Kernel release from disp+work ({{ sap_patching_kernel_release_dw }}) does not match expected version ({{ sap_patching_kernel_prepare_version }})"
-      success_msg: "Kernel release matches expected version."
-    when:
-     - sap_patching_kernel_prepare_version | lower != 'autodetect'
-     - not sap_patching_kernel_appendto_mode | bool
-
-  - name: Ensure symbolic link for kernel directory is correct
-    file:
-      src: "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
-      dest: "{{ sap_patching_kernel_base }}/{{ sap_patching_kernel_to_apply_symlink }}"
-      state: link
-      force: true
-      owner: "{{ sap_patching_file_owner }}"
-      group: "{{ sap_patching_file_group }}"
-    when: not sap_patching_kernel_appendto_mode | bool
-    become: true
-    become_user: "{{ sap_patching_file_owner }}"
-
- # This needs to be last so that sap_patching_kernel_to_apply is set correctly as the symlink step above needs the default value
-  - name: Set sap_patching_kernel_to_apply variable for use in later tasks
-    set_fact:
-      sap_patching_kernel_to_apply: "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
-
+- name: Prepare ABAP kernel patch if SAR files are found in source directory
   when: sap_patching_kernel_source_dir_content.matched > 0
+  block:
+    - name: Check for duplicates in source SAR files
+      ansible.builtin.assert:
+        that:
+          - sap_patching_kernel_source_dir_content.files | map(attribute='path') | map('basename') | map('regex_search', '^(.+)_', '\\1') | map('first') | community.general.counter() | dict2items | selectattr('value', '>', 1) | length == 0
+        fail_msg: >
+          Duplicate kernel SAR files found: {{ sap_patching_kernel_source_dir_content.files | map(attribute='path') | map('basename') | map('regex_search', '^(.+)_', '\1') | map('first') | community.general.counter() | dict2items | selectattr('value', '>', 1) | map(attribute='key') | join(', ') }}
+        success_msg: "Good, no duplicate kernel SAR files found."
+
+    - name: Check availability of SAPCAR - {{ sap_patching_sapcar_path + '/' + sap_patching_sapcar_file_name }}
+      ansible.builtin.stat:
+        path: "{{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
+      register: sap_patching_sapcar_file_name_stat
+      failed_when: not sap_patching_sapcar_file_name_stat.stat.exists
+
+    - name: Find SAPEXE* or dw* SAR files
+      ansible.bultin.find:
+        paths: "{{ sap_patching_kernel_source }}"
+        patterns:
+          - '(?i)SAPEXE_\d+-.*\.SAR'
+          - '(?i)SAPEXEDB_\d+-.*\.SAR'
+          - '(?i)dw_\d+-.*\.SAR'
+        use_regex: true
+        file_type: file
+      register: sap_patching_kernel_exedw_files
+
+    # - name: debug sap_patching_kernel_exedw_files.matched
+    #   debug:
+    #     var: sap_patching_kernel_exedw_files.matched
+
+    - name: Check/Set append to mode - default is off
+      ansible.bultin.set_fact:
+        sap_patching_kernel_appendto_mode: false
+
+    - name: Check/Set append to mode - on if required
+      ansible.bultin.set_fact:
+        sap_patching_kernel_appendto_mode: true
+      when:
+        - sap_patching_kernel_exedw_files.matched | int == 0
+        - sap_patching_kernel_prepare_appendto_version | d('', true) | length > 0
+        - sap_patching_kernel_prepare_appendto_version is match("\\d+p\\d+")
+
+    - name: Fail if sap_patching_kernel_prepare_appendto_version is required
+      ansible.builtin.fail:
+        msg: >
+          Can't find SAPEXE or dw SAR files. Either parameter sap_patching_kernel_prepare_appendto_version should be set (currently: {{ sap_patching_kernel_prepare_appendto_version }}) or SAPEXE*/dw* SAR files need to be present.
+      when:
+        - sap_patching_kernel_exedw_files.matched | int == 0
+        - not sap_patching_kernel_appendto_mode | bool
+
+    - name: Fail if append mode is on but SAPEXE/dw SAR files are present
+      ansible.builtin.fail:
+        msg: >
+          Parameter sap_patching_kernel_prepare_appendto_version is set({{ sap_patching_kernel_prepare_appendto_version }}), but SAPEXE*/dw* SAR files are present. Either unset sap_patching_kernel_prepare_appendto_version or remove the SAPEXE*/dw* SAR files.
+      when:
+        - sap_patching_kernel_exedw_files.matched | int > 0
+        - sap_patching_kernel_appendto_mode | bool
+
+    - name: Extract the highest patch number from file names
+      ansible.bultin.set_fact:
+        sap_patching_kernel_pn: "{{ sap_patching_kernel_exedw_files.files | map(attribute='path') | map('basename') | map('regex_search', '_(\\d+)-', '\\1') | map('first') | map('int') | sort | last }}"
+      when: not sap_patching_kernel_appendto_mode | bool
+
+    - name: Extract target patch number from append to version - append mode
+      ansible.bultin.set_fact:
+        sap_patching_kernel_pn: "{{ sap_patching_kernel_prepare_appendto_version | regex_search('^\\d+p(\\d+)$', '\\1') | first | int }}"
+      when: sap_patching_kernel_appendto_mode | bool
+
+    - name: Set the target kernel SP directory variable - autodetect mode
+      ansible.bultin.set_fact:
+        sap_patching_kernel_extract_target: "{{ sap_patching_kernel_base }}/kTMPp{{ sap_patching_kernel_pn }}"
+      when:
+        - sap_patching_kernel_prepare_version | lower == 'autodetect'
+        - not sap_patching_kernel_appendto_mode | bool
+
+    - name: Set the target kernel SP directory variable - manual mode
+      ansible.bultin.set_fact:
+        sap_patching_kernel_extract_target: "{{ sap_patching_kernel_base }}/k{{ sap_patching_kernel_prepare_version }}p{{ sap_patching_kernel_pn }}"
+      when:
+        - sap_patching_kernel_prepare_version | lower != 'autodetect'
+        - not sap_patching_kernel_appendto_mode | bool
+
+    - name: Set the target kernel SP directory variable - append mode
+      ansible.bultin.set_fact:
+        sap_patching_kernel_extract_target: "{{ sap_patching_kernel_base }}/k{{ sap_patching_kernel_prepare_appendto_version }}"
+      when: sap_patching_kernel_appendto_mode | bool
+
+    - name: Create a target kernel SP directory
+      ansible.builtin.file:
+        path: "{{ sap_patching_kernel_extract_target }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when:
+        - not sap_patching_kernel_appendto_mode | bool
+        - sap_patching_kernel_pn != ''
+
+    - name: Check target kernel directory
+      ansible.builtin.stat:
+        path: "{{ sap_patching_kernel_extract_target }}"
+      register: sap_patching_kernel_extract_target_stat
+
+    - name: Assert that target kernel directory exists and is a directory
+      ansible.builtin.assert:
+        that:
+          - sap_patching_kernel_extract_target is defined
+          - sap_patching_kernel_extract_target_stat.stat.exists
+          - sap_patching_kernel_extract_target_stat.stat.isdir
+        fail_msg: "Target kernel SP directory '{{ sap_patching_kernel_extract_target }}' does not exist or is not a directory."
+        success_msg: "Target kernel SP directory '{{ sap_patching_kernel_extract_target }}' exists and is a directory."
+
+    - name: Move all files from {{ sap_patching_kernel_source }} to {{ sap_patching_kernel_extract_target }}
+      ansible.builtin.shell: |
+        mv '{{ sap_patching_kernel_source }}'/* '{{ sap_patching_kernel_extract_target }}'
+      when:
+        - sap_patching_kernel_extract_target is defined
+        - sap_patching_kernel_source is defined
+        - sap_patching_kernel_extract_target != sap_patching_kernel_source
+      changed_when: true
+
+    - name: Prepare directory for kernel extraction
+      ansible.builtin.file:
+        path: "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when: not sap_patching_kernel_appendto_mode | bool
+
+    - name: Prepare ordered list of kernel SAR files (SAPEXE*, SAPEXEDB* first)
+      ansible.bultin.set_fact:
+        ordered_kernel_sar_files: >-
+          {{
+            (
+              sap_patching_kernel_source_dir_content.files
+              | selectattr('path', 'search', '(?i)SAPEXE_.*\.SAR')
+              | list
+              +
+              sap_patching_kernel_source_dir_content.files
+              | selectattr('path', 'search', '(?i)SAPEXEDB_.*\.SAR')
+              | list
+              +
+              sap_patching_kernel_source_dir_content.files
+              | rejectattr('path', 'search', '(?i)SAPEXE_.*\.SAR')
+              | rejectattr('path', 'search', '(?i)SAPEXEDB_.*\.SAR')
+              | list
+            )
+          }}
+
+    - name: Extract kernel SAR files in the correct order
+      ansible.builtin.command: >-
+        {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+        -xvf {{ item.path | basename }}
+        -R "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
+        -manifest SIGNATURE.SMF
+      register: sap_patching_extract_result
+      args:
+        chdir: "{{ sap_patching_kernel_extract_target }}"
+      become: true
+      become_user: "{{ sap_patching_file_owner }}"
+      changed_when: "'SAPCAR: processing archive' in sap_patching_extract_result.stdout"
+      loop: "{{ ordered_kernel_sar_files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+
+
+    - name: Set LD_LIBRARY_PATH for kernel extraction
+      ansible.bultin.set_fact:
+        sap_patching_ld_library_path: "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
+
+    - name: Check if both SAPEXE_.*\.SAR and SAPEXEDB_.*\.SAR are present and set delta suffix+LD_LIBRARY_PATH if so - autodetect mode
+      ansible.bultin.set_fact:
+        sap_patching_kernel_delta_suffix: "-delta"
+        sap_patching_ld_library_path: "/usr/sap/{{ sap_patching_sap_system_sid | upper }}/SYS/exe/run/"
+      when:
+        - sap_patching_kernel_prepare_version | lower == 'autodetect'
+        - not sap_patching_kernel_appendto_mode | bool
+        - not ordered_kernel_sar_files | selectattr('path', 'search', '(?i)SAPEXE_.*\.SAR') | list | length > 0
+        - not ordered_kernel_sar_files | selectattr('path', 'search', '(?i)SAPEXEDB_.*\.SAR') | list | length > 0
+
+    #Not going to use sapcontrol -nr 00 -function GetVersionInfo
+    - name: Check kernel release and patch number using disp+work
+      ansible.builtin.shell: >
+        set -o pipefail && {{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}/disp+work | grep 'kernel release\|patch number'
+      environment:
+        LD_LIBRARY_PATH: "{{ sap_patching_ld_library_path }}"
+      register: sap_patching_kernel_release_patch_output
+      changed_when: false
+      failed_when: sap_patching_kernel_release_patch_output.rc != 0
+
+    - name: Extract kernel release and patch number from disp+work output
+      ansible.bultin.set_fact:
+        sap_patching_kernel_release_dw: "{{ sap_patching_kernel_release_patch_output.stdout_lines | select('search', '^kernel release') | list | first | regex_search('kernel release\\s+(\\d+)', '\\1') | first }}"
+        sap_patching_kernel_patch_dw: "{{ sap_patching_kernel_release_patch_output.stdout_lines | select('search', '^patch number') | list | first | regex_search('patch number\\s+(\\d+)', '\\1') | first }}"
+
+    - name: Assert expected kernel patch number matches extracted SAR patch number
+      ansible.builtin.assert:
+        that:
+          - (sap_patching_kernel_patch_dw | int) == (sap_patching_kernel_pn | int)
+        fail_msg: "Kernel patch number from disp+work ({{ sap_patching_kernel_patch_dw }}) does not match expected SAR patch number ({{ sap_patching_kernel_pn }})."
+
+    - name: Rename kernel directory - autodetect mode
+      ansible.builtin.command: >
+        mv "{{ sap_patching_kernel_base }}/kTMPp{{ sap_patching_kernel_pn }}"
+          "{{ sap_patching_kernel_base }}/k{{ sap_patching_kernel_release_dw }}p{{ sap_patching_kernel_pn }}{{ sap_patching_kernel_delta_suffix | default('') }}"
+      when:
+        - sap_patching_kernel_prepare_version | lower == 'autodetect'
+        - not sap_patching_kernel_appendto_mode | bool
+      changed_when: true
+
+    - name: Update target kernel SP directory variable after rename - autodetect mode
+      ansible.bultin.set_fact:
+        sap_patching_kernel_extract_target: "{{ sap_patching_kernel_base }}/k{{ sap_patching_kernel_release_dw }}p{{ sap_patching_kernel_pn }}{{ sap_patching_kernel_delta_suffix | default('') }}"
+      when:
+        - sap_patching_kernel_prepare_version | lower == 'autodetect'
+        - not sap_patching_kernel_appendto_mode | bool
+
+    - name: Assert kernel release matches expected version - manual mode
+      ansible.builtin.assert:
+        that:
+          - sap_patching_kernel_release_dw | int  == sap_patching_kernel_prepare_version | int
+        fail_msg: "Kernel release from disp+work ({{ sap_patching_kernel_release_dw }}) does not match expected version ({{ sap_patching_kernel_prepare_version }})"
+        success_msg: "Kernel release matches expected version."
+      when:
+        - sap_patching_kernel_prepare_version | lower != 'autodetect'
+        - not sap_patching_kernel_appendto_mode | bool
+
+    - name: Ensure symbolic link for kernel directory is correct
+      ansible.builtin.file:
+        src: "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"
+        dest: "{{ sap_patching_kernel_base }}/{{ sap_patching_kernel_to_apply_symlink }}"
+        state: link
+        force: true
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when: not sap_patching_kernel_appendto_mode | bool
+      become: true
+      become_user: "{{ sap_patching_file_owner }}"
+
+  # This needs to be last so that sap_patching_kernel_to_apply is set correctly as the symlink step above needs the default value
+    - name: Set sap_patching_kernel_to_apply variable for use in later tasks
+      ansible.bultin.set_fact:
+        sap_patching_kernel_to_apply: "{{ sap_patching_kernel_extract_target }}/{{ sap_patching_kernel_extracted }}"

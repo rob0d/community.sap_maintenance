@@ -2,7 +2,7 @@
 # Credit where credit is due: This file was originally copied and modified from the sap_hana_install role
 - name: Get hdblcm git hash version
   ansible.builtin.shell: |
-    {{ sap_patching_hdb_server_to_apply }}/hdblcm --version | grep GitHash | \
+    set -o pipefail && {{ sap_patching_hdb_server_to_apply }}/hdblcm --version | grep GitHash | \
     awk -F ':' '{print $2}' | tr -d '[:blank:]'
   register: __sap_patching_hdb_hdblcm_git_hash_version
   failed_when: __sap_patching_hdb_hdblcm_git_hash_version.rc != 0 or __sap_patching_hdb_hdblcm_git_hash_version.stdout | length == 0

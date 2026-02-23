@@ -1,11 +1,12 @@
+---
 # Sanitasion and checks
 - name: Set sap_patching_host_agent_to_apply to default if not defined or empty
-  set_fact:
+  ansible.bultin.set_fact:
     sap_patching_host_agent_to_apply: "{{ sap_patching_host_agent_to_apply_symlink }}"
   when: sap_patching_host_agent_to_apply is not defined or sap_patching_host_agent_to_apply | type_debug == "NoneType" or sap_patching_host_agent_to_apply | d() |  length == 0
 
 - name: Prepend sap_patching_host_agent_base if sap_patching_host_agent_to_apply is not an absolute path
-  set_fact:
+  ansible.bultin.set_fact:
     sap_patching_host_agent_to_apply: "{{ sap_patching_host_agent_base }}/{{ sap_patching_host_agent_to_apply }}"
   when:
     - sap_patching_host_agent_to_apply is defined
@@ -14,7 +15,7 @@
 # Local copy of extracted files if not on shared storage
 - name: Copy host agent to be applied to a local directory if not present on a shared one
   when: not sap_patching_host_agent_extracted_shared | bool
-  copy:
+  ansible.builtin.copy:
     src: "{{ sap_patching_host_agent_to_apply }}/"
     dest: "{{ sap_patching_host_agent_extracted_local_path }}"
     remote_src: "{{ sap_patching_host_agent_extracted_shared | bool }}"
@@ -26,7 +27,7 @@
 
 - name: Overriding host agent to apply path settings with extracted local path as it's not present on a shared one and it's just been copied here
   when: not sap_patching_host_agent_extracted_shared | bool
-  set_fact:
+  ansible.bultin.set_fact:
     sap_patching_host_agent_to_apply: "{{ sap_patching_host_agent_extracted_local_path }}"
 
 # Execute these checks only if the files to be applied are on shared folder directly accessible from the sap host
@@ -34,86 +35,86 @@
   run_once: "{{ sap_patching_host_agent_extracted_shared | bool }}"
   when: sap_patching_host_agent_extracted_shared | bool
   block:
-  - name: Check that sap_patching_host_agent_to_apply exists
-    stat:
-      path: "{{ sap_patching_host_agent_to_apply }}"
-    register: sap_patching_host_agent_to_apply_stat
-    failed_when: not sap_patching_host_agent_to_apply_stat.stat.exists
-    changed_when: false
+    - name: Check that sap_patching_host_agent_to_apply exists
+      ansible.builtin.stat:
+        path: "{{ sap_patching_host_agent_to_apply }}"
+      register: sap_patching_host_agent_to_apply_stat
+      failed_when: not sap_patching_host_agent_to_apply_stat.stat.exists
+      changed_when: false
 
-  - name: Ensure sap_patching_host_agent_to_apply is a directory or symlink
-    assert:
-      that:
-        - sap_patching_host_agent_to_apply_stat.stat.isdir or sap_patching_host_agent_to_apply_stat.stat.islnk
-      fail_msg: "sap_patching_host_agent_to_apply is not a directory or symlink"
-      success_msg: "sap_patching_host_agent_to_apply is a directory or symlink"
-    changed_when: false
+    - name: Ensure sap_patching_host_agent_to_apply is a directory or symlink
+      ansible.bultin.assert:
+        that:
+          - sap_patching_host_agent_to_apply_stat.stat.isdir or sap_patching_host_agent_to_apply_stat.stat.islnk
+        fail_msg: "sap_patching_host_agent_to_apply is not a directory or symlink"
+        success_msg: "sap_patching_host_agent_to_apply is a directory or symlink"
+      changed_when: false
 
-  - name: Check the content of {{ sap_patching_host_agent_to_apply }}
-    find:
-      paths: "{{ sap_patching_host_agent_to_apply }}"
-      file_type: file
-    register: sap_patching_host_agent_to_apply_files
-    changed_when: false
+    - name: Check the content of {{ sap_patching_host_agent_to_apply }}
+      ansible.bultin.find:
+        paths: "{{ sap_patching_host_agent_to_apply }}"
+        file_type: file
+      register: sap_patching_host_agent_to_apply_files
+      changed_when: false
 
-  - name: Ensure {{ sap_patching_host_agent_to_apply }} is not empty and contains saphostexec and saphostctrl
-    assert:
-      that:
-        - sap_patching_host_agent_to_apply_files.matched | int > 0
-        - "'saphostexec' in sap_patching_host_agent_to_apply_files.files | map(attribute='path') | map('basename') | list"
-        - "'saphostctrl' in sap_patching_host_agent_to_apply_files.files | map(attribute='path') | map('basename') | list"
-      fail_msg: "{{ sap_patching_host_agent_to_apply }} is empty or doesn't contain required files, this is unexpected for a correctly extracted SAR archive"
-      success_msg: "{{ sap_patching_host_agent_to_apply }} is not empty and contains required files"
-    changed_when: false
+    - name: Ensure {{ sap_patching_host_agent_to_apply }} is not empty and contains saphostexec and saphostctrl
+      ansible.bultin.assert:
+        that:
+          - sap_patching_host_agent_to_apply_files.matched | int > 0
+          - "'saphostexec' in sap_patching_host_agent_to_apply_files.files | map(attribute='path') | map('basename') | list"
+          - "'saphostctrl' in sap_patching_host_agent_to_apply_files.files | map(attribute='path') | map('basename') | list"
+        fail_msg: "{{ sap_patching_host_agent_to_apply }} is empty or doesn't contain required files, this is unexpected for a correctly extracted SAR archive"
+        success_msg: "{{ sap_patching_host_agent_to_apply }} is not empty and contains required files"
+      changed_when: false
 
 # Execution
 - name: Apply host agent updates - auto update mode
   run_once: true
   when: sap_patching_params.update_mode == 'auto'
   block:
-  - name: Check that {{ sap_patching_host_agent_autoupdate_path }}/.upgrading does not exist
-    stat:
-      path: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading"
-    register: host_agent_autoupdate_upgrading_stat
-    changed_when: false
+    - name: Check that {{ sap_patching_host_agent_autoupdate_path }}/.upgrading does not exist
+      ansible.builtin.stat:
+        path: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading"
+      register: __sap_patching_host_agent_autoupdate_upgrading_stat
+      changed_when: false
 
-  - name: Fail if {{ sap_patching_host_agent_autoupdate_path }}/.upgrading exists
-    assert:
-      that:
-        - not host_agent_autoupdate_upgrading_stat.stat.exists
-      fail_msg: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading exists. This means another update is in progress or this is a stale file. Resolve this and re-run."
-      success_msg: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading does not exist."
-    changed_when: false
+    - name: Fail if {{ sap_patching_host_agent_autoupdate_path }}/.upgrading exists
+      ansible.bultin.assert:
+        that:
+          - not __sap_patching_host_agent_autoupdate_upgrading_stat.stat.exists
+        fail_msg: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading exists. This means another update is in progress or this is a stale file. Resolve this and re-run."
+        success_msg: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading does not exist."
+      changed_when: false
 
-  - name: Create .upgrading file to indicate update in progress
-    file:
-      path: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading"
-      state: touch
-      owner: "{{ sap_patching_file_owner }}"
-      group: "{{ sap_patching_file_group }}"
-      mode: '0644'
-    changed_when: true
+    - name: Create .upgrading file to indicate update in progress
+      ansible.builtin.file:
+        path: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading"
+        state: touch
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+        mode: '0644'
+      changed_when: true
 
-  - name: Wait for 30 seconds to give any running host agent autoupdates chance to finish
-    ansible.builtin.wait_for:
-      timeout: 30
+    - name: Wait for 30 seconds to give any running host agent autoupdates chance to finish
+      ansible.builtin.wait_for:
+        timeout: 30
 
-  - name: Copy host agent files to the update directory ({{ sap_patching_host_agent_autoupdate_path }})
-    copy:
-      src: "{{ sap_patching_host_agent_to_apply }}/"
-      dest: "{{ sap_patching_host_agent_autoupdate_path }}"
-      remote_src: "{{ sap_patching_host_agent_extracted_shared | bool }}"
-      owner: "{{ sap_patching_file_owner }}"
-      group: "{{ sap_patching_file_group }}"
-      mode: '0755'
-      directory_mode: '0755'
-    changed_when: true
+    - name: Copy host agent files to the update directory ({{ sap_patching_host_agent_autoupdate_path }})
+      ansible.builtin.copy:
+        src: "{{ sap_patching_host_agent_to_apply }}/"
+        dest: "{{ sap_patching_host_agent_autoupdate_path }}"
+        remote_src: "{{ sap_patching_host_agent_extracted_shared | bool }}"
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+        mode: '0755'
+        directory_mode: '0755'
+      changed_when: true
 
-  - name: Remove .upgrading file after update to allow host agent autoupdate to run
-    file:
-      path: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading"
-      state: absent
-    changed_when: true
+    - name: Remove .upgrading file after update to allow host agent autoupdate to run
+      ansible.builtin.file:
+        path: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading"
+        state: absent
+      changed_when: true
 
 - name: Apply host agent updates - manual update mode
   when: sap_patching_params.update_mode == 'manual'

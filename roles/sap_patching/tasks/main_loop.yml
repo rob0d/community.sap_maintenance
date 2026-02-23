@@ -1,6 +1,6 @@
 ---
 # - name: Set task parameter variables
-#   set_fact:
+#   ansible.bultin.set_fact:
 #     "{{ param_item.key }}": "{{ param_item.value }}"
 #   with_dict: "{{ sap_patching_exec_def[item].vars | default({}) }}"
 #   loop_control:

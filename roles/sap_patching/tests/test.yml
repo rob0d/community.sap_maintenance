@@ -2,4 +2,4 @@
 - hosts: localhost
   remote_user: root
   roles:
-    - nbs_nw_hana_patching
+    - community.sap_maintenance.sap_patching
