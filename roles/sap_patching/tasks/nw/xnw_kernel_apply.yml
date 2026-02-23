@@ -1,19 +1,19 @@
 ---
 # Sanitasion and checks
 - name: Set {{ _sap_patching_kernel_to_apply }} to default if not defined or empty
-  ansible.bultin.set_fact:
+  ansible.builtin.set_fact:
     _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_to_apply_symlink }}"
   when: _sap_patching_kernel_to_apply is not defined or _sap_patching_kernel_to_apply | type_debug == "NoneType" or _sap_patching_kernel_to_apply | d('',true) |  length == 0
 
 - name: Prepend _sap_patching_kernel_base if _sap_patching_kernel_to_apply is not an absolute path
-  ansible.bultin.set_fact:
+  ansible.builtin.set_fact:
     _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_base }}/{{ _sap_patching_kernel_to_apply }}"
   when:
     - _sap_patching_kernel_to_apply is defined
     - not _sap_patching_kernel_to_apply.startswith('/')
 
 # - name: Append sap_patching_kernel_extracted to sap_patching_kernel_to_apply if not present
-#   ansible.bultin.set_fact:
+#   ansible.builtin.set_fact:
 #     _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_to_apply }}/{{ sap_patching_kernel_extracted }}"
 #   when:
 #     - _sap_patching_kernel_to_apply is defined
@@ -72,7 +72,7 @@
 
 # Changed asswert/fail to skip, keeping this for reference until the end of 2027
 # - name: Ensure {{ sap_patching_kernel_global_exe }} is a directory or a link
-#   ansible.bultin.assert:
+#   ansible.builtin.assert:
 #     that:
 #       - sap_patching_sapmnt_exe_stat.stat.exists
 #       - sap_patching_sapmnt_exe_stat.stat.islnk or sap_patching_sapmnt_exe_stat.stat.isdir
@@ -81,14 +81,14 @@
 #   changed_when: false
 
     - name: Check the content of {{ sap_patching_kernel_global_exe }}
-      ansible.bultin.find:
+      ansible.builtin.find:
         paths: "{{ sap_patching_kernel_global_exe }}"
         file_type: file
       register: sap_patching_sapmnt_exe_files
       changed_when: false
 
     - name: Ensure {{ sap_patching_kernel_global_exe }} is not empty
-      ansible.bultin.assert:
+      ansible.builtin.assert:
         that:
           - sap_patching_sapmnt_exe_files.matched | int > 0
         fail_msg: "{{ sap_patching_kernel_global_exe }} is empty, this is unexpected for a correctly installed system"

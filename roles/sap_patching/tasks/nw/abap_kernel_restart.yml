@@ -1,6 +1,6 @@
 ---
 - name: Setting correct variables for restart task
-  ansible.bultin.set_fact:
+  ansible.builtin.set_fact:
     _sap_patching_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
     _sap_patching_kernel_restart_strategy: "{{ sap_patching_kernel_restart_strategy }}"
     _sap_patching_kernel_or_webdisp: "abap_kernel"

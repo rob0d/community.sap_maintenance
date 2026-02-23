@@ -1,7 +1,7 @@
 ---
 # Search for webdisp SAR files and extract support package number
 - name: Check if webdisp source directory contains .sar files (case-insensitive)
-  ansible.bultin.find:
+  ansible.builtin.find:
     paths: "{{ sap_patching_webdisp_source }}"
     patterns: ['(?i)sapwebdisp_.*\.sar$']
     use_regex: true
@@ -15,7 +15,7 @@
   block:
     # In case there are more than one SAR files, get the one with the highest version number
     - name: Get the highest version of web dispatcher SAR file
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_webdisp_sar: >-
           {{
             sap_patching_webdisp_source_dir_content.files
@@ -33,11 +33,11 @@
       failed_when: not sap_patching_sapcar_file_name_stat.stat.exists
 
     - name: Extract the web dispatcher version from SAR file
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_webdisp_pn: "{{ sap_patching_webdisp_sar | regex_search('(?i)SAPWEBDISP_SP_(\\d+)-\\d+.SAR', '\\1') | list | last }}"
 
     - name: Set the target web dispatcher directory variable
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_webdisp_extract_target: "{{ sap_patching_webdisp_base }}/{{ sap_patching_webdisp_extracted }}_{{ sap_patching_webdisp_pn }}"
 
     - name: Create target web dispatcher directory
@@ -112,7 +112,7 @@
 
     # webdisp is using = between release/patch and the number unlike disp+work which is using just spaces
     - name: Extract webdisp release and patch number from sapwebdisp output
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_webdisp_release_wd: "{{ sap_patching_webdisp_release_patch_output.stdout_lines | select('search', '^kernel release') | list | first | regex_search('kernel release\\s+=+\\s+(\\d+)', '\\1') | first }}"
         sap_patching_webdisp_patch_wd: "{{ sap_patching_webdisp_release_patch_output.stdout_lines | select('search', '^patch number') | list | first | regex_search('patch number\\s+=+\\s+(\\d+)', '\\1') | first }}"
 
@@ -129,7 +129,7 @@
       changed_when: true
 
     - name: Update target webdisp SP directory variable after rename - autodetect mode
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_webdisp_extract_target: "{{ sap_patching_webdisp_base }}/{{ sap_patching_webdisp_extracted }}_{{ sap_patching_webdisp_release_wd }}p{{ sap_patching_webdisp_pn }}"
 
     - name: Ensure symbolic link for web dispatcher directory is correct
@@ -144,5 +144,5 @@
       become_user: "{{ sap_patching_file_owner }}"
 
     - name: Set sap_patching_webdisp_to_apply variable for use in later tasks
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_webdisp_to_apply: "{{ sap_patching_webdisp_extract_target }}"

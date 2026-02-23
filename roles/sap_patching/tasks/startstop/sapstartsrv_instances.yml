@@ -19,6 +19,6 @@
 
 # The instance list should contain W, D, ASCS or ERS
 - name: Parse instance types and numbers from _sap_patching_sap_instances output
-  ansible.bultin.set_fact:
+  ansible.builtin.set_fact:
     _sap_patching_instance_list: "{{ _sap_patching_sap_instances.stdout_lines | map('regex_search', '([A-Z]+)([0-9]{2})', '\\1', '\\2') }}"
     _sap_patching_instance_dict: "{{ _sap_patching_sap_instances.stdout_lines | map('regex_search', '([A-Z]+)([0-9]{2})', '\\1', '\\2') | community.general.dict }}"

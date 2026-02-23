@@ -1,7 +1,7 @@
 ---
 # Search for HDB client SAR files and extract support package number
 - name: Check if HDB client source directory contains .sar files (case-insensitive)
-  ansible.bultin.find:
+  ansible.builtin.find:
     paths: "{{ sap_patching_hdb_server_source }}"
     patterns: ['(?i)IMDB_SERVER.*\.SAR$']
     use_regex: true
@@ -15,7 +15,7 @@
   block:
     # In case there are more than one SAR files, get the one with the highest version number
     - name: Get the highest version of HDB server SAR file
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_server_sar: >-
           {{
             sap_patching_hdb_server_source_dir_content.files
@@ -33,11 +33,11 @@
       failed_when: not sap_patching_sapcar_file_name_stat.stat.exists
 
     - name: Extract the server version from SAR file
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_server_version: "{{ sap_patching_hdb_server_sar | regex_search('(?i)IMDB_SERVER([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
 
     - name: Set the target HDB server directory variable
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_server_extract_target: "{{ sap_patching_hdb_server_base }}/{{ sap_patching_hdb_server_extracted }}_{{ sap_patching_hdb_server_version }}"
 
     - name: Create extraction target HDB server directory
@@ -113,5 +113,5 @@
       become_user: "{{ sap_patching_file_owner }}"
 
     - name: Set sap_patching_hdb_server_to_apply variable for use in later tasks
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_server_to_apply: "{{ sap_patching_hdb_server_extract_target }}/SAP_HANA_DATABASE"

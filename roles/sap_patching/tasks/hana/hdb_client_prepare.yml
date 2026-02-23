@@ -34,11 +34,11 @@
       failed_when: not sap_patching_sapcar_file_name_stat.stat.exists
 
     - name: Extract the client version from SAR file
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_client_version: "{{ sap_patching_hdb_client_sar | regex_search('(?i)IMDB_CLIENT([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
 
     - name: Set the target HDB client directory variable
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_client_extract_target: "{{ sap_patching_hdb_client_base }}/{{ sap_patching_hdb_client_extracted }}_{{ sap_patching_hdb_client_version }}"
 
     - name: Create extraction target HDB client directory
@@ -114,5 +114,5 @@
       become_user: "{{ sap_patching_file_owner }}"
 
     - name: Set sap_patching_hdb_client_to_apply variable for use in later tasks
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_client_to_apply: "{{ sap_patching_hdb_client_extract_target }}/SAP_HANA_CLIENT"

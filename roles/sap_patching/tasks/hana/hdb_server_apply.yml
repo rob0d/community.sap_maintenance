@@ -1,12 +1,12 @@
 ---
 # Sanitasion and checks
 - name: Set sap_patching_hdb_server_to_apply to default if not defined or empty
-  ansible.bultin.set_fact:
+  ansible.builtin.set_fact:
     sap_patching_hdb_server_to_apply: "{{ sap_patching_hdb_server_to_apply_symlink }}"
   when: sap_patching_hdb_server_to_apply is not defined or sap_patching_hdb_server_to_apply | type_debug == "NoneType" or sap_patching_hdb_server_to_apply | d('', true) |  length == 0
 
 - name: Prepend sap_patching_hdb_server_base if sap_patching_hdb_server_to_apply is not an absolute path
-  ansible.bultin.set_fact:
+  ansible.builtin.set_fact:
     sap_patching_hdb_server_to_apply: "{{ sap_patching_hdb_server_base }}/{{ sap_patching_hdb_server_to_apply }}"
   when:
     - sap_patching_hdb_server_to_apply is defined
@@ -63,7 +63,7 @@
 
     - name: Overriding 'HDB server to apply' path settings with extracted local path as it's not present on a shared one and it's just been copied here
       when: not sap_patching_hdb_server_extracted_shared | bool
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_server_to_apply: "{{ sap_patching_hdb_server_extracted_local_path }}"
 
     # Execute these checks only once if the files to be applied are on shared folder directly accessible from the sap host
@@ -78,7 +78,7 @@
           changed_when: false
 
         - name: Ensure sap_patching_hdb_server_to_apply is a directory or symlink
-          ansible.bultin.assert:
+          ansible.builtin.assert:
             that:
               - sap_patching_hdb_server_to_apply_stat.stat.isdir or sap_patching_hdb_server_to_apply_stat.stat.islnk
             fail_msg: "sap_patching_hdb_server_to_apply is not a directory or symlink"
@@ -86,14 +86,14 @@
           changed_when: false
 
         - name: Check the content of {{ sap_patching_hdb_server_to_apply }}
-          ansible.bultin.find:
+          ansible.builtin.find:
             paths: "{{ sap_patching_hdb_server_to_apply }}"
             file_type: any
           register: sap_patching_hdb_server_to_apply_files
           changed_when: false
 
         - name: Ensure {{ sap_patching_hdb_server_to_apply }} is not empty and contains server folder and hdblcm
-          ansible.bultin.assert:
+          ansible.builtin.assert:
             that:
               - sap_patching_hdb_server_to_apply_files.matched | int > 0
               - "'server' in sap_patching_hdb_server_to_apply_files.files | map(attribute='path') | map('basename') | list"
@@ -185,7 +185,7 @@
       failed_when: "'SAPCONTROL-OK' not in _sap_patching_hdb_hsr_srstate.stdout or _sap_patching_hdb_hsr_srstate.rc != 0"
 
     - name: Make sure the system is online before proceeding
-      ansible.bultin.assert:
+      ansible.builtin.assert:
         that:
           - "'online=true' in _sap_patching_hdb_hsr_srstate.stdout"
         fail_msg: "System offline, cannot proceed with patching."
@@ -196,7 +196,7 @@
       when: "'mode=none' not in _sap_patching_hdb_hsr_srstate.stdout"
       block:
         - name: Extract and sort siteTier entries from HSR state output (HSR)
-          ansible.bultin.set_fact:
+          ansible.builtin.set_fact:
             _sap_patching_hdb_hsr_sites: >-
               {{
                 _sap_patching_hdb_hsr_srstate.stdout_lines
@@ -206,7 +206,7 @@
               }}
 
         - name: Set site to host dictionary (HSR)
-          ansible.bultin.set_fact:
+          ansible.builtin.set_fact:
             _sap_patching_hdb_hsr_site_to_host: >-
               {{
                 _sap_patching_hdb_hsr_srstate.stdout_lines
@@ -235,11 +235,11 @@
           failed_when: "'ERROR' in sap_patching_hdb_server_activate_system_output.stderr or sap_patching_hdb_server_activate_system_output.rc != 0"
 
         - name: Set the initial cluster relocation status fact (HSR)
-          ansible.bultin.set_fact:
+          ansible.builtin.set_fact:
             _sap_patching_hdb_cluster_relocated: false
 
         - name: Set hostname to fqdn dictionary (HSR)
-          ansible.bultin.set_fact:
+          ansible.builtin.set_fact:
             _sap_patching_hdb_host_fqdn: >-
               {{
                 ansible_play_hosts_all | map('split', '.') | map('first') | list
@@ -284,7 +284,7 @@
               when: "'mode=none' not in _sap_patching_hdb_hsr_srstate3.stdout"
               block:
                 - name: Make sure the system is online before proceeding - after patching (HSR)
-                  ansible.bultin.assert:
+                  ansible.builtin.assert:
                     that:
                       - "'online=true' in _sap_patching_hdb_hsr_srstate3.stdout"
                     fail_msg: "System offline, cannot proceed with patching."
@@ -292,7 +292,7 @@
                   changed_when: false
 
                 - name: Extract and sort siteTier entries from HSR state output - after patching (HSR)
-                  ansible.bultin.set_fact:
+                  ansible.builtin.set_fact:
                     _sap_patching_hdb_hsr_sites: >-
                       {{
                         _sap_patching_hdb_hsr_srstate3.stdout_lines
@@ -302,7 +302,7 @@
                       }}
 
                 - name: Set site to host dictionary - after patching (HSR)
-                  ansible.bultin.set_fact:
+                  ansible.builtin.set_fact:
                     _sap_patching_hdb_hsr_site_to_host: >-
                       {{
                         _sap_patching_hdb_hsr_srstate3.stdout_lines

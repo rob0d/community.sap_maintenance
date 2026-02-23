@@ -46,7 +46,7 @@
           failed_when: _sap_patching_kernel_new_output.rc != 0
 
         - name: Extract RKS compatibility level from disp+work output
-          ansible.bultin.set_fact:
+          ansible.builtin.set_fact:
             _sap_patching_kernel_new_rks_level: "{{ _sap_patching_kernel_new_output.stdout_lines | regex_search('RKS compatibility level\\s+(\\d+)', '\\1') | first }}"
 
         - name: Check the RKS compatibility of the current kernel using sapcontrol
@@ -61,7 +61,7 @@
           failed_when: "_sap_patching_kernel_current_output.rc != 0 or 'FAIL' in _sap_patching_kernel_current_output.stdout"
 
         - name: Extract RKS compatibility level from sapcontrol output
-          ansible.bultin.set_fact:
+          ansible.builtin.set_fact:
             _sap_patching_kernel_current_rks_level: "{{ _sap_patching_kernel_current_output.stdout_lines | regex_search('RKS compatibility level\\s+(\\d+),', '\\1') | first }}"
 
         - name: Assert RKS compatibility levels match

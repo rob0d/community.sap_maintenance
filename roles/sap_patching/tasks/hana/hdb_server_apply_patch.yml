@@ -19,7 +19,7 @@
     #       - "Delegated to: {{ _sap_patching_delegated_to_host }}"
 
     - name: Set hdblcm action parameter based on update_mode
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         sap_patching_hdb_server_hdblcm_action: >-
           {% if sap_patching_params.update_mode == 'prepare' %}
           --action=update --prepare_update
@@ -101,7 +101,7 @@
                   }}
 
             - name: Set site to host dictionary - again
-              ansible.bultin.set_fact:
+              ansible.builtin.set_fact:
                 _sap_patching_hdb_hsr_site_to_host2: >-
                   {{
                     _sap_patching_hdb_hsr_srstate2.stdout_lines
@@ -235,7 +235,7 @@
     # If this is the second iteration of main loop through HSR sites, it will read the correct value on all hosts.
     - name: Mark that relocation was already completed (if clustered)
       run_once: true
-      ansible.bultin.set_fact:
+      ansible.builtin.set_fact:
         _sap_patching_hdb_cluster_relocated: true
       when:
         - sap_patching_hdb_server_is_clustered | bool

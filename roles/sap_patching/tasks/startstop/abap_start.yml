@@ -1,7 +1,7 @@
 ---
 - name: Setting correct sid variables if required
   when: _sap_patching_sap_system_sid | d('',true) | length == 0 or sap_patching_params.task_execution_mode | d('',true)  == 'direct'
-  ansible.bultin.set_fact:
+  ansible.builtin.set_fact:
     _sap_patching_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
 
 - name: Get a list of sapstartsrv instances
