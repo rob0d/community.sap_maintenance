@@ -1,5 +1,5 @@
 ---
-# Sanitasion and checks
+# Sanitation and checks
 - name: Set sap_patching_host_agent_to_apply to default if not defined or empty
   ansible.builtin.set_fact:
     sap_patching_host_agent_to_apply: "{{ sap_patching_host_agent_to_apply_symlink }}"
@@ -38,14 +38,14 @@
     - name: Check that sap_patching_host_agent_to_apply exists
       ansible.builtin.stat:
         path: "{{ sap_patching_host_agent_to_apply }}"
-      register: sap_patching_host_agent_to_apply_stat
-      failed_when: not sap_patching_host_agent_to_apply_stat.stat.exists
+      register: __sap_patching_register_host_agent_to_apply_stat
+      failed_when: not __sap_patching_register_host_agent_to_apply_stat.stat.exists
       changed_when: false
 
     - name: Ensure sap_patching_host_agent_to_apply is a directory or symlink
       ansible.builtin.assert:
         that:
-          - sap_patching_host_agent_to_apply_stat.stat.isdir or sap_patching_host_agent_to_apply_stat.stat.islnk
+          - __sap_patching_register_host_agent_to_apply_stat.stat.isdir or __sap_patching_register_host_agent_to_apply_stat.stat.islnk
         fail_msg: "sap_patching_host_agent_to_apply is not a directory or symlink"
         success_msg: "sap_patching_host_agent_to_apply is a directory or symlink"
       changed_when: false
@@ -54,15 +54,15 @@
       ansible.builtin.find:
         paths: "{{ sap_patching_host_agent_to_apply }}"
         file_type: file
-      register: sap_patching_host_agent_to_apply_files
+      register: __sap_patching_register_host_agent_to_apply_files
       changed_when: false
 
     - name: Ensure {{ sap_patching_host_agent_to_apply }} is not empty and contains saphostexec and saphostctrl
       ansible.builtin.assert:
         that:
-          - sap_patching_host_agent_to_apply_files.matched | int > 0
-          - "'saphostexec' in sap_patching_host_agent_to_apply_files.files | map(attribute='path') | map('basename') | list"
-          - "'saphostctrl' in sap_patching_host_agent_to_apply_files.files | map(attribute='path') | map('basename') | list"
+          - __sap_patching_register_host_agent_to_apply_files.matched | int > 0
+          - "'saphostexec' in __sap_patching_register_host_agent_to_apply_files.files | map(attribute='path') | map('basename') | list"
+          - "'saphostctrl' in __sap_patching_register_host_agent_to_apply_files.files | map(attribute='path') | map('basename') | list"
         fail_msg: "{{ sap_patching_host_agent_to_apply }} is empty or doesn't contain required files, this is unexpected for a correctly extracted SAR archive"
         success_msg: "{{ sap_patching_host_agent_to_apply }} is not empty and contains required files"
       changed_when: false
@@ -75,13 +75,13 @@
     - name: Check that {{ sap_patching_host_agent_autoupdate_path }}/.upgrading does not exist
       ansible.builtin.stat:
         path: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading"
-      register: __sap_patching_host_agent_autoupdate_upgrading_stat
+      register: __sap_patching_register_host_agent_autoupdate_upgrading_stat
       changed_when: false
 
     - name: Fail if {{ sap_patching_host_agent_autoupdate_path }}/.upgrading exists
       ansible.builtin.assert:
         that:
-          - not __sap_patching_host_agent_autoupdate_upgrading_stat.stat.exists
+          - not __sap_patching_register_host_agent_autoupdate_upgrading_stat.stat.exists
         fail_msg: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading exists. This means another update is in progress or this is a stale file. Resolve this and re-run."
         success_msg: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading does not exist."
       changed_when: false
@@ -126,6 +126,6 @@
         chdir: "{{ sap_patching_host_agent_to_apply }}"
       become: true
       become_user: root
-      register: sap_patching_host_agent_manual_upgrade_result
-      changed_when: sap_patching_host_agent_manual_upgrade_result.rc == 0
-      failed_when: sap_patching_host_agent_manual_upgrade_result.rc != 0
+      register: __sap_patching_register_host_agent_manual_upgrade_result
+      changed_when: __sap_patching_register_host_agent_manual_upgrade_result.rc == 0
+      failed_when: __sap_patching_register_host_agent_manual_upgrade_result.rc != 0

@@ -1,11 +1,12 @@
 ---
-- name: Verify that sap_patching_execution_plan contains only supported tasks
-  run_once: true
-  ansible.builtin.assert:
-    that:
-      - item in sap_patching_exec_def | default({})
-    fail_msg: "Execution plan step '{{ item }}' is not known or supported."
-  changed_when: false
+#### Validate required variables ####
+- name: Validate mandatory variables
+  ansible.builtin.include_tasks:
+    file: validations/main.yml
+
+- name: Execute validator for each step in the execution plan
+  ansible.builtin.include_tasks:
+    file: validator.yml
   loop: "{{ sap_patching_execution_plan }}"
   loop_control:
     label: "Checking step: {{ item }}"
@@ -14,20 +15,19 @@
 #   debug:
 #     msg:
 #       - "Executing step: {{ item }}"
-#       - "{{ sap_patching_exec_def[item].file }}"
-#       - "{{ sap_patching_exec_def[item].tags }}"
-#       - "{{ sap_patching_exec_def[item].where }}"
+#       - "{{ __sap_patching_exec_def[item].file }}"
+#       - "{{ __sap_patching_exec_def[item].tags }}"
+#       - "{{ __sap_patching_exec_def[item].where }}"
 #   loop: "{{ sap_patching_execution_plan }}"
 #   loop_control:
 #     label: "Executing step: {{ item }}"
-#   when: "sap_patching_exec_def[item].where | from_yaml"
+#   when: "__sap_patching_exec_def[item].where | from_yaml"
 
 - name: Looping through the execution plan
   ansible.builtin.include_tasks:
     file: main_loop.yml
-
   loop: "{{ sap_patching_execution_plan }}"
   loop_control:
-    loop_var: sap_patching_step
-    label: "Executing step: {{ sap_patching_step }}"
-  # when: "sap_patching_exec_def[sap_patching_step].where | from_yaml"
+    loop_var: __sap_patching_step
+    label: "Executing step: {{ __sap_patching_step }}"
+  # when: "__sap_patching_exec_def[__sap_patching_step].where | from_yaml"

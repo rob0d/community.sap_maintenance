@@ -1,0 +1,78 @@
+---
+- name: Assert that the variable 'sap_patching_file_owner' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_file_owner is defined
+      - sap_patching_file_owner is string
+      - sap_patching_file_owner | length > 0
+    fail_msg: |
+      The variable 'sap_patching_file_owner' is undefined, empty, or invalid.
+      It should be a string containing a valid user.
+
+- name: Assert that the variable 'sap_patching_file_group' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_file_group is defined
+      - sap_patching_file_group is string
+      - sap_patching_file_group | length > 0
+    fail_msg: |
+      The variable 'sap_patching_file_group' is undefined, empty, or invalid.
+      It should be a string containing a valid group.
+
+- name: Assert that the variable 'sap_patching_host_agent_base' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_host_agent_base is defined
+      - sap_patching_host_agent_base is string
+      - sap_patching_host_agent_base | length > 0
+      - sap_patching_host_agent_base is match('^/')
+    fail_msg: |
+      The variable 'sap_patching_host_agent_base' is undefined, empty, or invalid.
+      It should be an absolute path (starting with /) where host agent SAR files are stored and extraction directories are created.
+
+- name: Assert that the variable 'sap_patching_host_agent_source' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_host_agent_source is defined
+      - sap_patching_host_agent_source is string
+      - sap_patching_host_agent_source | length > 0
+    fail_msg: |
+      The variable 'sap_patching_host_agent_source' is undefined, empty, or invalid.
+      It should be a path where the host agent SAR files are located (used during the prepare step).
+
+- name: Assert that the variable 'sap_patching_host_agent_autoupdate_path' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_host_agent_autoupdate_path is defined
+      - sap_patching_host_agent_autoupdate_path is string
+      - sap_patching_host_agent_autoupdate_path | length > 0
+      - sap_patching_host_agent_autoupdate_path is match('^/')
+    fail_msg: |
+      The variable 'sap_patching_host_agent_autoupdate_path' is undefined, empty, or invalid.
+      It should be an absolute path (starting with /) where host agent autoupdate looks for updates (parameter DIR_NEW in host_profile).
+  when: __sap_patching_exec_def[item].vars.update_mode | default('') == 'auto'
+
+- name: Assert that the variable 'sap_patching_host_agent_extracted_shared' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_host_agent_extracted_shared is defined
+      - sap_patching_host_agent_extracted_shared is boolean
+    fail_msg: |
+      The variable 'sap_patching_host_agent_extracted_shared' is undefined or invalid.
+      It should be a boolean (true/false) indicating if extracted host agent files are on shared storage (e.g. NFS share).
+
+- name: Assert that the variable 'sap_patching_host_agent_extracted_local_path' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_host_agent_extracted_local_path is defined
+      - sap_patching_host_agent_extracted_local_path is string
+      - sap_patching_host_agent_extracted_local_path | length > 0
+      - sap_patching_host_agent_extracted_local_path is match('^/')
+    fail_msg: |
+      The variable 'sap_patching_host_agent_extracted_local_path' is undefined, empty, or invalid.
+      It should be an absolute path (starting with /) where a local copy of extracted host agent files is stored to run saphostexec.
+  when: not sap_patching_host_agent_extracted_shared
+
+- name: Mark validator {{ validator_name }} as executed
+  ansible.builtin.set_fact:
+    __sap_patching_fact_validator_executed[validator_name]: true

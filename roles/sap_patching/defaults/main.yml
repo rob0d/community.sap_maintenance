@@ -8,7 +8,7 @@ sap_patching_execution_plan: []
 sap_patching_sap_system_sid: ''
 
 # SAPCAR information
-sap_patching_sapcar_path: "{{ nbs_software_base_path }}"
+sap_patching_sapcar_path: "/install"
 sap_patching_sapcar_file_name: SAPCAR.EXE
 
 # User which owns all extracted files, typically <sid>adm or some kind of common shared user on NFS share
@@ -55,6 +55,11 @@ sap_patching_hdb_client_base: /install/hanadb/client
 # Directory where the SAR files are located (used during the prepare step)
 sap_patching_hdb_client_source: "{{ sap_patching_hdb_client_base }}/source"
 
+# Either relative (to sap_patching_hdb_client_base) or absolute path to the hdb_client which will be applied
+# If not set, sap_patching_hdb_client_to_apply_symlink will be used
+# abap_hdb_client_prepare task will set this if it was executed and hdb_client was extracted
+sap_patching_hdb_client_to_apply: ''
+
 # If using individual client installation - installation path of the HDB client (used for --path option of hdbinst)
 # **mutually exclusive with sap_patching_hdb_client_shared_path**
 sap_patching_hdb_client_install_path: "{{
@@ -82,11 +87,16 @@ sap_patching_hdb_server_base: /install/hanadb/server
 # Directory where the SAR files are located (used during the prepare step)
 sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
 
+# Either relative (to sap_patching_hdb_server_base) or absolute path to the hdb_server which will be applied
+# If not set, sap_patching_hdb_server_to_apply_symlink will be used
+# abap_hdb_server_prepare task will set this if it was executed and hdb_server was extracted
+sap_patching_hdb_server_to_apply: ''
+
 # Installation path of the HDB server (used to check the existing installation).
 # Unless you have a weird non-standard installation, there is no need to set this variable.
 sap_patching_hdb_server_install_path: "{{ '/usr/sap/' + sap_patching_hdb_system_sid | upper + '/SYS/exe/hdb' }}"
 
-# If set the specified used will be used to perform the update.
+# If set the specified user will be used to perform the update.
 # READ the documentation here: https://help.sap.com/docs/SAP_HANA_PLATFORM/2c1988d620e04368aa4103bf26f17727/df3de8c31cef45c0847d2804b97604ea.html
 # to understand the implications of using this option (XSA update does not work with this option for example).
 sap_patching_hdb_server_system_user: ''
@@ -117,7 +127,7 @@ sap_patching_hdb_server_clu_hdb_resource_name: "cln_SAPHana_{{ sap_patching_hdb_
 # If false, the extracted HDB server source files will be copied from the Ansible controller to the target host
 sap_patching_hdb_server_extracted_shared: true
 
-# Where to store a local copy of extracted HDB server files as they must be present locally in order to run hdbinst
+# Where to store a local copy of extracted HDB server files as they must be present locally in order to run hdbinst/hdblcm
 sap_patching_hdb_server_extracted_local_path: /install-local/hanadb/server
 
 
@@ -127,6 +137,11 @@ sap_patching_hdb_server_extracted_local_path: /install-local/hanadb/server
 sap_patching_host_agent_base: /install/hostagents
 # Directory where the SAR files are located (used during the prepare step)
 sap_patching_host_agent_source: "{{ sap_patching_host_agent_base }}/source"
+
+# Either relative (to sap_patching_host_agent_base) or absolute path to the host_agent which will be applied
+# If not set, sap_patching_host_agent_to_apply_symlink will be used
+# abap_host_agent_prepare task will set this if it was executed and host_agent was extracted
+sap_patching_host_agent_to_apply: ''
 
 # If host agent autoupdate is configured (https://me.sap.com/notes/1473974) this is the path where it's looking for updates (parameter DIR_NEW in host_profile)
 sap_patching_host_agent_autoupdate_path: /install/HostAgentUpdateDir
@@ -149,6 +164,11 @@ sap_patching_webdisp_base: /install/webdisp
 # Directory where the SAR files are located (used during the prepare step)
 sap_patching_webdisp_source: "{{ sap_patching_webdisp_base }}/source"
 
+# Either relative (to sap_patching_webdisp_base) or absolute path to the webdisp which will be applied
+# If not set, sap_patching_webdisp_to_apply_symlink will be used
+# abap_webdisp_prepare task will set this if it was executed and webdisp was extracted
+sap_patching_webdisp_to_apply: ''
+
 # If true, the extracted web disp files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
 # If false, the extracted web disp files will be copied from the Ansible controller to the target host
 sap_patching_webdisp_extracted_shared: true
@@ -156,6 +176,7 @@ sap_patching_webdisp_extracted_shared: true
 
 ########################################################
 # Generally no need to change anything below this line #
+# Unless you know what you are doing ...               #
 ########################################################
 
 # Global executable directory for the SAP kernel
@@ -164,17 +185,6 @@ sap_patching_kernel_global_exe: ''
 
 # RKS wait timeout in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
 sap_patching_rks_wait_timeout: 900
-
-#########################################################
-# Definitely no need to change anything below this line #
-#########################################################
-
-# Subfolders which stores the extracted files
-sap_patching_kernel_extracted: extracted
-sap_patching_hdb_client_extracted: extracted
-sap_patching_hdb_server_extracted: extracted
-sap_patching_host_agent_extracted: extracted
-sap_patching_webdisp_extracted: extracted
 
 # Name of symbolic link to point to the folder to be used by the patching process
 sap_patching_kernel_to_apply_symlink: ansible_to_apply

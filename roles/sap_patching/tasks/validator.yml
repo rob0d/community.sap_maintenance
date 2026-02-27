@@ -1,0 +1,21 @@
+---
+- name: Verify that plan task '{{ item }}' is supported
+  #run_once: true
+  ansible.builtin.assert:
+    that:
+      - item in __sap_patching_exec_def | default({})
+    fail_msg: "Execution plan task '{{ item }}' is not known or supported."
+  changed_when: false
+
+- name: Execute validator for task '{{ item }}'
+  ansible.builtin.include_tasks:
+    file: "validations/{{ validator_name }}.yml"
+  loop: "{{ __sap_patching_exec_def[item].validators }}"
+  loop_control:
+    variable: validator_name
+    label: "Executing validator '{{ validator_name }}' for task '{{ __sap_patching_exec_def[item].file }}'"
+  when:
+    - __sap_patching_exec_def[item].validators is defined
+    - __sap_patching_exec_def[item].validators | length > 0
+    - __sap_patching_exec_def[item].validators is iterable
+    - __sap_patching_validator_executed[validator_name] | default(false) | bool

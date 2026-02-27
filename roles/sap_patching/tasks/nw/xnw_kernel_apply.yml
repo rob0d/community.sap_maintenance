@@ -1,81 +1,83 @@
 ---
-# Sanitasion and checks
-- name: Set {{ _sap_patching_kernel_to_apply }} to default if not defined or empty
+# Sanitation and checks
+- name: Set {{ __sap_patching_fact_kernel_to_apply }} to default if not defined or empty
   ansible.builtin.set_fact:
-    _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_to_apply_symlink }}"
-  when: _sap_patching_kernel_to_apply is not defined or _sap_patching_kernel_to_apply | type_debug == "NoneType" or _sap_patching_kernel_to_apply | d('',true) |  length == 0
+    __sap_patching_fact_kernel_to_apply: "{{ __sap_patching_fact_kernel_to_apply_symlink }}"
+  when: __sap_patching_fact_kernel_to_apply is not defined or __sap_patching_fact_kernel_to_apply | type_debug == "NoneType" or __sap_patching_fact_kernel_to_apply | d('',true) |  length == 0
 
-- name: Prepend _sap_patching_kernel_base if _sap_patching_kernel_to_apply is not an absolute path
+- name: Prepend __sap_patching_fact_kernel_base if __sap_patching_fact_kernel_to_apply is not an absolute path
   ansible.builtin.set_fact:
-    _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_base }}/{{ _sap_patching_kernel_to_apply }}"
+    __sap_patching_fact_kernel_to_apply: "{{ __sap_patching_fact_kernel_base }}/{{ __sap_patching_fact_kernel_to_apply }}"
   when:
-    - _sap_patching_kernel_to_apply is defined
-    - not _sap_patching_kernel_to_apply.startswith('/')
+    - __sap_patching_fact_kernel_to_apply is defined
+    - not __sap_patching_fact_kernel_to_apply.startswith('/')
 
-# - name: Append sap_patching_kernel_extracted to sap_patching_kernel_to_apply if not present
+# - name: Append __sap_patching_kernel_extracted to sap_patching_kernel_to_apply if not present
 #   ansible.builtin.set_fact:
-#     _sap_patching_kernel_to_apply: "{{ _sap_patching_kernel_to_apply }}/{{ sap_patching_kernel_extracted }}"
+#     __sap_patching_fact_kernel_to_apply: "{{ __sap_patching_fact_kernel_to_apply }}/{{ __sap_patching_kernel_extracted }}"
 #   when:
-#     - _sap_patching_kernel_to_apply is defined
-#     - _sap_patching_kernel_or_webdisp == "abap_kernel"
-#     - not _sap_patching_kernel_to_apply | regex_search('(^|/)' ~ sap_patching_kernel_extracted ~ '(/|$)')
+#     - __sap_patching_fact_kernel_to_apply is defined
+#     - __sap_patching_fact_kernel_or_webdisp == "abap_kernel"
+#     - not __sap_patching_fact_kernel_to_apply | regex_search('(^|/)' ~ __sap_patching_kernel_extracted ~ '(/|$)')
 
 # Execute these checks only if the files to be applied are on shared folder directly accessible from the sap host
-- name: Execute checks of the {{ _sap_patching_kernel_or_webdisp }} files which will be applied in a moment
-  when: "_sap_patching_kernel_extracted_shared | bool"
+- name: Execute checks of the {{ __sap_patching_fact_kernel_or_webdisp }} files which will be applied in a moment
+  when: "__sap_patching_fact_kernel_extracted_shared | bool"
   block:
-    - name: Check that {{ _sap_patching_kernel_to_apply }} exists
+    - name: Check that {{ __sap_patching_fact_kernel_to_apply }} exists
       ansible.builtin.stat:
-        path: "{{ _sap_patching_kernel_to_apply }}"
-      register: _sap_patching_kernel_to_apply_stat
-      failed_when: not _sap_patching_kernel_to_apply_stat.stat.exists
+        path: "{{ __sap_patching_fact_kernel_to_apply }}"
+      register: __sap_patching_register_kernel_to_apply_stat
+      failed_when: not __sap_patching_register_kernel_to_apply_stat.stat.exists
       changed_when: false
 
-    - name: Ensure {{ _sap_patching_kernel_to_apply }} is a directory or symlink
+    - name: Ensure {{ __sap_patching_fact_kernel_to_apply }} is a directory or symlink
       ansible.builtin.assert:
         that:
-          - _sap_patching_kernel_to_apply_stat.stat.isdir or _sap_patching_kernel_to_apply_stat.stat.islnk
-        fail_msg: "{{ _sap_patching_kernel_to_apply }} is not a directory or symlink"
-        success_msg: "{{ _sap_patching_kernel_to_apply }} is a directory or symlink"
+          - __sap_patching_register_kernel_to_apply_stat.stat.isdir or __sap_patching_register_kernel_to_apply_stat.stat.islnk
+        fail_msg: "{{ __sap_patching_fact_kernel_to_apply }} is not a directory or symlink"
+        success_msg: "{{ __sap_patching_fact_kernel_to_apply }} is a directory or symlink"
       changed_when: false
 
-    - name: Check the content of {{ _sap_patching_kernel_to_apply }}
+    - name: Check the content of {{ __sap_patching_fact_kernel_to_apply }}
       ansible.builtin.find:
-        paths: "{{ _sap_patching_kernel_to_apply }}"
+        paths: "{{ __sap_patching_fact_kernel_to_apply }}"
         file_type: file
-      register: _sap_patching_kernel_to_apply_files
+      register: __sap_patching_register_kernel_to_apply_files
       changed_when: false
 
-    - name: Ensure {{ _sap_patching_kernel_to_apply }} is not empty
+    - name: Ensure {{ __sap_patching_fact_kernel_to_apply }} is not empty
       ansible.builtin.assert:
         that:
-          - _sap_patching_kernel_to_apply_files.matched | int > 0
-        fail_msg: "{{ _sap_patching_kernel_to_apply }} is empty, this is unexpected for correctly extracted kernel source"
-        success_msg: "{{ _sap_patching_kernel_to_apply }} is not empty"
+          - __sap_patching_register_kernel_to_apply_files.matched | int > 0
+        fail_msg: "{{ __sap_patching_fact_kernel_to_apply }} is empty, this is unexpected for correctly extracted kernel source"
+        success_msg: "{{ __sap_patching_fact_kernel_to_apply }} is not empty"
       changed_when: false
 
 - name: Set global exe Directory
   ansible.builtin.set_fact:
-    sap_patching_kernel_global_exe: "/usr/sap/{{ _sap_patching_sap_system_sid | upper }}/SYS/exe/run"
+    sap_patching_kernel_global_exe: "/usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run"
+  when:
+    - sap_patching_kernel_global_exe is not defined or sap_patching_kernel_global_exe | d('', true) | length == 0
 
 - name: Check that {{ sap_patching_kernel_global_exe }} exists
   ansible.builtin.stat:
     path: "{{ sap_patching_kernel_global_exe }}"
-  register: sap_patching_sapmnt_exe_stat
+  register: __sap_patching_register_sapmnt_exe_stat
   changed_when: false
 
 - name: Continue if the target directory is present (this will silently skip servers without kernel/webdisp present)
   when:
-    - sap_patching_sapmnt_exe_stat.stat.exists
-    - sap_patching_sapmnt_exe_stat.stat.islnk or sap_patching_sapmnt_exe_stat.stat.isdir
+    - __sap_patching_register_sapmnt_exe_stat.stat.exists
+    - __sap_patching_register_sapmnt_exe_stat.stat.islnk or __sap_patching_register_sapmnt_exe_stat.stat.isdir
   block:
 
 # Changed asswert/fail to skip, keeping this for reference until the end of 2027
 # - name: Ensure {{ sap_patching_kernel_global_exe }} is a directory or a link
 #   ansible.builtin.assert:
 #     that:
-#       - sap_patching_sapmnt_exe_stat.stat.exists
-#       - sap_patching_sapmnt_exe_stat.stat.islnk or sap_patching_sapmnt_exe_stat.stat.isdir
+#       - __sap_patching_register_sapmnt_exe_stat.stat.exists
+#       - __sap_patching_register_sapmnt_exe_stat.stat.islnk or __sap_patching_register_sapmnt_exe_stat.stat.isdir
 #     fail_msg: "{{ sap_patching_kernel_global_exe }} does not exist or is not a symlink/directory"
 #     success_msg: "{{ sap_patching_kernel_global_exe }} exists and is a symlink/directory"
 #   changed_when: false
@@ -84,13 +86,13 @@
       ansible.builtin.find:
         paths: "{{ sap_patching_kernel_global_exe }}"
         file_type: file
-      register: sap_patching_sapmnt_exe_files
+      register: __sap_patching_register_sapmnt_exe_files
       changed_when: false
 
     - name: Ensure {{ sap_patching_kernel_global_exe }} is not empty
       ansible.builtin.assert:
         that:
-          - sap_patching_sapmnt_exe_files.matched | int > 0
+          - __sap_patching_register_sapmnt_exe_files.matched | int > 0
         fail_msg: "{{ sap_patching_kernel_global_exe }} is empty, this is unexpected for a correctly installed system"
         success_msg: "{{ sap_patching_kernel_global_exe }} is not empty"
       changed_when: false
@@ -98,10 +100,10 @@
     # Execution
     - name: Copy kernel files to global exe directory
       ansible.builtin.copy:
-        src: "{{ _sap_patching_kernel_to_apply }}/"
+        src: "{{ __sap_patching_fact_kernel_to_apply }}/"
         dest: "{{ sap_patching_kernel_global_exe }}"
-        remote_src: "{{ _sap_patching_kernel_extracted_shared | bool }}"
-        owner: "{{ _sap_patching_sap_system_sid | lower }}adm"
+        remote_src: "{{ __sap_patching_fact_kernel_extracted_shared | bool }}"
+        owner: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
         group: sapsys
         mode: '0755'
         directory_mode: '0755'

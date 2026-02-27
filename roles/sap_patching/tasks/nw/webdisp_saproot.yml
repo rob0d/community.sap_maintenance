@@ -1,7 +1,7 @@
 ---
 - name: Setting correct variables for saproot task
   ansible.builtin.set_fact:
-    _sap_patching_sap_system_sid: "{{ sap_patching_wdp_system_sid }}"
+    __sap_patching_fact_sap_system_sid: "{{ sap_patching_wdp_system_sid }}"
 
 - name: Execute saproot function to set correct permissions
   ansible.builtin.include_tasks:

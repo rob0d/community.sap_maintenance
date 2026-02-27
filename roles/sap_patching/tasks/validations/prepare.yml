@@ -1,0 +1,44 @@
+---
+- name: Assert that the variable 'sap_patching_sapcar_path' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_sapcar_path is defined
+      - sap_patching_sapcar_path is string
+      - sap_patching_sapcar_path | length > 0
+    fail_msg: |
+      The variable 'sap_patching_sapcar_path' is undefined, empty, or invalid.
+      It should be a string containing a valid file path.
+
+- name: Assert that the variable 'sap_patching_sapcar_file_name' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_sapcar_file_name is defined
+      - sap_patching_sapcar_file_name is string
+      - sap_patching_sapcar_file_name | length > 0
+    fail_msg: |
+      The variable 'sap_patching_sapcar_file_name' is undefined, empty, or invalid.
+      It should be a string containing a valid file name.
+
+- name: Assert that the variable 'sap_patching_file_owner' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_file_owner is defined
+      - sap_patching_file_owner is string
+      - sap_patching_file_owner | length > 0
+    fail_msg: |
+      The variable 'sap_patching_file_owner' is undefined, empty, or invalid.
+      It should be a string containing a valid user.
+
+- name: Assert that the variable 'sap_patching_file_group' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_file_group is defined
+      - sap_patching_file_group is string
+      - sap_patching_file_group | length > 0
+    fail_msg: |
+      The variable 'sap_patching_file_group' is undefined, empty, or invalid.
+      It should be a string containing a valid group.
+
+- name: Mark validator {{ validator_name }} as executed
+  ansible.builtin.set_fact:
+    __sap_patching_fact_validator_executed[validator_name]: true

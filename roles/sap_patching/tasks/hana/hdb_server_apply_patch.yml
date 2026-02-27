@@ -8,7 +8,7 @@
         - "'mode=none' not in _sap_patching_hdb_hsr_srstate.stdout"
       ansible.builtin.debug:
         msg:
-          - "Processing HANA DB server '{{ _sap_patching_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}' on site '{{ _sap_patching_hdb_hsr_site[0] }}'"
+          - "Processing HANA DB server '{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}' on site '{{ _sap_patching_hdb_hsr_site[0] }}'"
 
     # - name: Debug hosts
     #   ansible.builtin.debug:
@@ -20,7 +20,7 @@
 
     - name: Set hdblcm action parameter based on update_mode
       ansible.builtin.set_fact:
-        sap_patching_hdb_server_hdblcm_action: >-
+        __sap_patching_fact_hdb_server_hdblcm_action: >-
           {% if sap_patching_params.update_mode == 'prepare' %}
           --action=update --prepare_update
           {% else %}
@@ -43,21 +43,21 @@
 
     - name: Include hdblcm config file template
       ansible.builtin.include_tasks: hdblcm_configfile.yml
-    #_sap_patching_hdb_hdblcm_configfile
+    #__sap_patching_fact_hdb_hdblcm_configfile
 
     # Execute update using hdblcm
     - name: Update HANA DB server
       ansible.builtin.command: >-
-        '{{ sap_patching_hdb_server_to_apply }}/hdblcm' {{ sap_patching_hdb_server_hdblcm_action }}
+        '{{ sap_patching_hdb_server_to_apply }}/hdblcm' {{ __sap_patching_fact_hdb_server_hdblcm_action }}
         -s {{ sap_patching_hdb_system_sid }} --batch
         {{ '--system_user=' + sap_patching_hdb_server_cf_system_user if sap_patching_hdb_server_cf_system_user | d('', true) | length > 0 else '' }}
-        --configfile={{ _sap_patching_hdb_hdblcm_configfile }}
-      register: sap_patching_hdb_server_hdblcm_output
+        --configfile={{ __sap_patching_fact_hdb_hdblcm_configfile }}
+      register: __sap_patching_register_hdb_server_hdblcm_output
       # args:
       #   chdir: '"{{ sap_patching_hdb_server_to_apply }}"'
       become: true
-      changed_when: "('SAP HANA Database components updated' in sap_patching_hdb_server_hdblcm_output.stdout or 'Update of SAP HANA Database components prepared' in sap_patching_hdb_server_hdblcm_output.stdout) and sap_patching_hdb_server_hdblcm_output.rc == 0"
-      failed_when: "'failed' in sap_patching_hdb_server_hdblcm_output.stderr or sap_patching_hdb_server_hdblcm_output.rc != 0"
+      changed_when: "('SAP HANA Database components updated' in __sap_patching_register_hdb_server_hdblcm_output.stdout or 'Update of SAP HANA Database components prepared' in __sap_patching_register_hdb_server_hdblcm_output.stdout) and __sap_patching_register_hdb_server_hdblcm_output.rc == 0"
+      failed_when: "'failed' in __sap_patching_register_hdb_server_hdblcm_output.stderr or __sap_patching_register_hdb_server_hdblcm_output.rc != 0"
 
     # We are inside the HSR loop, but the primary/master site may have switched if we are in a cluster and patching the primary/secondary pair
     # So we need to re-check the HSR status and make sure we know who is the current primary
@@ -75,26 +75,26 @@
             -sr_state -sapcontrol=1
           become: true
           become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
-          register: _sap_patching_hdb_hsr_srstate2
+          register: __sap_patching_register_hdb_hsr_srstate2
           changed_when: false
-          failed_when: "'SAPCONTROL-OK' not in _sap_patching_hdb_hsr_srstate2.stdout or _sap_patching_hdb_hsr_srstate2.rc != 0"
+          failed_when: "'SAPCONTROL-OK' not in __sap_patching_register_hdb_hsr_srstate2.stdout or __sap_patching_register_hdb_hsr_srstate2.rc != 0"
 
         - name: HSR is enabled  - again
-          when: "'mode=none' not in _sap_patching_hdb_hsr_srstate2.stdout"
+          when: "'mode=none' not in __sap_patching_register_hdb_hsr_srstate2.stdout"
           block:
             - name: Make sure the system is online before proceeding  - again
               ansible.builtin.assert:
                 that:
-                  - "'online=true' in _sap_patching_hdb_hsr_srstate2.stdout"
+                  - "'online=true' in __sap_patching_register_hdb_hsr_srstate2.stdout"
                 fail_msg: "System offline, cannot proceed with patching."
                 success_msg: "System is online, proceeding ..."
               changed_when: false
 
             - name: Extract and sort siteTier entries from HSR state output - again
               ansible.builtin.set_fact:
-                _sap_patching_hdb_hsr_sites2: >-
+                __sap_patching_fact_hdb_hsr_sites2: >-
                   {{
-                    _sap_patching_hdb_hsr_srstate2.stdout_lines
+                    __sap_patching_register_hdb_hsr_srstate2.stdout_lines
                     | select('match', '^siteTier/')
                     | map('regex_search', '^siteTier/(.+)=(.+)$', '\1','\2')
                     | sort(attribute=1, reverse=true)
@@ -102,9 +102,9 @@
 
             - name: Set site to host dictionary - again
               ansible.builtin.set_fact:
-                _sap_patching_hdb_hsr_site_to_host2: >-
+                __sap_patching_fact_hdb_hsr_site_to_host2: >-
                   {{
-                    _sap_patching_hdb_hsr_srstate2.stdout_lines
+                    __sap_patching_register_hdb_hsr_srstate2.stdout_lines
                     | select('match', '^mapping/')
                     | map('regex_search', '^mapping/.+=(.+)/(.+)$', '\1','\2')
                     | community.general.dict
@@ -133,35 +133,35 @@
             #
                 #   source ~/.profile && HDBSettings.sh systemReplicationStatus.py | \
                 # awk -F '|' '/^this system/ {print} $9 ~ /{{ hostvars[inventory_hostname]['ansible_hostname'] }}/ {print $17}'
-                #_sap_patching_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] == _sap_patching_hdb_hsr_site_to_host2[_sap_patching_hdb_hsr_sites2 | last | first ]]
+                #__sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] == __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]]
             - name: Check HSR replication state of replication target (using Python script) on master site
-              delegate_to: "{{ _sap_patching_hdb_host_fqdn[_sap_patching_hdb_hsr_site_to_host2[_sap_patching_hdb_hsr_sites2 | last | first]] }}"
+              delegate_to: "{{ __sap_patching_fact_hdb_host_fqdn[__sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first]] }}"
               when:
-                - "'mode=none' not in _sap_patching_hdb_hsr_srstate2.stdout"
-                - _sap_patching_hdb_hsr_site_to_host2[_sap_patching_hdb_hsr_sites2 | last | first] in ansible_play_hosts | map('split', '.') | map('first') | list
-                - _sap_patching_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] != _sap_patching_hdb_hsr_site_to_host2[_sap_patching_hdb_hsr_sites2 | last | first ]
+                - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate2.stdout"
+                - __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first] in ansible_play_hosts | map('split', '.') | map('first') | list
+                - __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] != __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]
               ansible.builtin.shell: |
                 set -o pipefail && source ~/.profile && HDBSettings.sh systemReplicationStatus.py | \
-                awk -F '|' '/^this system/ {print} $9 ~ /{{ _sap_patching_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}/ {print $17}'
+                awk -F '|' '/^this system/ {print} $9 ~ /{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}/ {print $17}'
               args:
                 executable: /bin/bash
-              register: _sap_patching_hdb_hsr_srstatus_target
+              register: __sap_patching_register_hdb_hsr_srstatus_target
               become: true
               become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
-              until: "'False' not in _sap_patching_hdb_hsr_srstatus_target.stdout or 'this system' in _sap_patching_hdb_hsr_srstatus_target.stdout"
+              until: "'False' not in __sap_patching_register_hdb_hsr_srstatus_target.stdout or 'this system' in __sap_patching_register_hdb_hsr_srstatus_target.stdout"
               retries: 30
               delay: 20
               changed_when: false
 
             - name: Check HSR replication state of replication master (using Python script) on master site
-              delegate_to: "{{ _sap_patching_hdb_host_fqdn[_sap_patching_hdb_hsr_site_to_host2[_sap_patching_hdb_hsr_sites2 | last | first]] }}"
+              delegate_to: "{{ __sap_patching_fact_hdb_host_fqdn[__sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first]] }}"
               when:
-                - "'mode=none' not in _sap_patching_hdb_hsr_srstate2.stdout"
-                - _sap_patching_hdb_hsr_site_to_host2[_sap_patching_hdb_hsr_sites2 | last | first] in ansible_play_hosts | map('split', '.') | map('first') | list
-                - _sap_patching_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] == _sap_patching_hdb_hsr_site_to_host2[_sap_patching_hdb_hsr_sites2 | last | first ]
+                - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate2.stdout"
+                - __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first] in ansible_play_hosts | map('split', '.') | map('first') | list
+                - __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] == __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]
               ansible.builtin.shell: |
                 set -o pipefail && source ~/.profile && HDBSettings.sh systemReplicationStatus.py | \
-                awk -F '|' '/^this system/ {print} $3 ~ /{{ _sap_patching_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}/ {print $17}'
+                awk -F '|' '/^this system/ {print} $3 ~ /{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}/ {print $17}'
               args:
                 executable: /bin/bash
               register: _sap_patching_hdb_hsr_srstatus_master
@@ -182,20 +182,20 @@
             - name: Check HSR replication state (using hdbcons) on the current site
               when:
                 - "'mode=none' not in _sap_patching_hdb_hsr_srstate.stdout"
-                - "_sap_patching_hdb_hsr_srstatus_target.stdout | d('',true) | length == 0 or 'this system' in _sap_patching_hdb_hsr_srstatus_target.stdout"
+                - "__sap_patching_register_hdb_hsr_srstatus_target.stdout | d('',true) | length == 0 or 'this system' in __sap_patching_register_hdb_hsr_srstatus_target.stdout"
                 - "_sap_patching_hdb_hsr_srstatus_master.stdout | d('',true) | length == 0 or 'this system' in _sap_patching_hdb_hsr_srstatus_master.stdout"
               ansible.builtin.shell: |
                 set -o pipefail && source ~/.profile && hdbcons "replication info"| grep ReplicationStatus_ | awk -F ':' '{print $2}' | sed -n 's/.*ReplicationStatus_\(.*\)/\1/p'
               args:
                 executable: /bin/bash
-              register: _sap_patching_hdb_hsr_srstatus_hdbcons
+              register: __sap_patching_register_hdb_hsr_srstatus_hdbcons
               become: true
               become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
-              until: "'Error' not in _sap_patching_hdb_hsr_srstatus_hdbcons.stdout or 'Syncing' not in _sap_patching_hdb_hsr_srstatus_hdbcons.stdout"
+              until: "'Error' not in __sap_patching_register_hdb_hsr_srstatus_hdbcons.stdout or 'Syncing' not in __sap_patching_register_hdb_hsr_srstatus_hdbcons.stdout"
               retries: 30
               delay: 20
               changed_when: false
-              failed_when: _sap_patching_hdb_hsr_srstatus_hdbcons.stdout | length == 0
+              failed_when: __sap_patching_register_hdb_hsr_srstatus_hdbcons.stdout | length == 0
 
     # If clustered and not in prepare mode then turn off cluster maintenance mode
     # 'false/true' are strings, not booleans
@@ -229,15 +229,15 @@
       when:
         - sap_patching_hdb_server_is_clustered | bool
         - sap_patching_params.update_mode != 'prepare'
-        - not _sap_patching_hdb_cluster_relocated | d(false, true) | bool
+        - not __sap_patching_fact_hdb_cluster_relocated | d(false, true) | bool
 
     # We use run_once "trick" here to set this variable on all hosts in the play.
     # If this is the second iteration of main loop through HSR sites, it will read the correct value on all hosts.
     - name: Mark that relocation was already completed (if clustered)
       run_once: true
       ansible.builtin.set_fact:
-        _sap_patching_hdb_cluster_relocated: true
+        __sap_patching_fact_hdb_cluster_relocated: true
       when:
         - sap_patching_hdb_server_is_clustered | bool
         - sap_patching_params.update_mode != 'prepare'
-        - not _sap_patching_hdb_cluster_relocated | d(false, true) | bool
+        - not __sap_patching_fact_hdb_cluster_relocated | d(false, true) | bool

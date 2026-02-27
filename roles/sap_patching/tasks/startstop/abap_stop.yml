@@ -1,15 +1,15 @@
 ---
 - name: Setting correct sid variables if required
-  when: _sap_patching_sap_system_sid | d('',true) | length == 0 or sap_patching_params.task_execution_mode | d('',true) == 'direct'
+  when: __sap_patching_fact_sap_system_sid | d('',true) | length == 0 or sap_patching_params.task_execution_mode | d('',true) == 'direct'
   ansible.builtin.set_fact:
-    _sap_patching_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
+    __sap_patching_fact_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
 
 - name: Get a list of sapstartsrv instances
   ansible.builtin.include_tasks:
     file: sapstartsrv_instances.yml
 
 - name: Proceed only if at least one instance is found
-  when: _sap_patching_instance_list | length > 0
+  when: __sap_patching_fact_instance_list | length > 0
   block:
 
     - name: Block to stop the system and wait until all instances are down
@@ -19,39 +19,39 @@
         # Grabbing the first instance number from the list as any instance can stop the system
         - name: Stop the system
           ansible.builtin.shell: |
-            source ~/.profile && sapcontrol -nr {{ _sap_patching_instance_list[0][1] }} -function StopSystem
+            source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }} -function StopSystem
           args:
             executable: /bin/bash
           become: true
-          become_user: "{{ _sap_patching_sap_system_sid | lower }}adm"
-          register: _sap_patching_stop_system
-          failed_when: "_sap_patching_stop_system.rc != 0 or 'FAIL' in _sap_patching_stop_system.stdout"
-          changed_when: _sap_patching_stop_system.rc == 0
+          become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+          register: __sap_patching_register_stop_system
+          failed_when: "__sap_patching_register_stop_system.rc != 0 or 'FAIL' in __sap_patching_register_stop_system.stdout"
+          changed_when: __sap_patching_register_stop_system.rc == 0
 
         - name: Wait for the system to stop
           ansible.builtin.shell: |
-            source ~/.profile && sapcontrol -nr {{ _sap_patching_instance_list[0][1] }} -function WaitforStopped 600 10
+            source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }} -function WaitforStopped 600 10
           args:
             executable: /bin/bash
           become: true
-          become_user: "{{ _sap_patching_sap_system_sid | lower }}adm"
-          register: _sap_patching_stop_system_wait
-          failed_when: "_sap_patching_stop_system_wait.rc != 0 or 'FAIL' in _sap_patching_stop_system_wait.stdout"
-          changed_when: _sap_patching_stop_system_wait.rc == 0
+          become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+          register: __sap_patching_register_stop_system_wait
+          failed_when: "__sap_patching_register_stop_system_wait.rc != 0 or 'FAIL' in __sap_patching_register_stop_system_wait.stdout"
+          changed_when: __sap_patching_register_stop_system_wait.rc == 0
 
     # This code has been superseeded. Keeping here for reference. To be removed at the end of 2027.
     # # This is a bit crude, but safest to make sure we continue only if the whole system is down
     # # Grabbing the first instance number from the list as any instance can see all others
     # - name: Wait until all instances are not GREEN
     #   ansible.builtin.shell: |
-    #     source ~/.profile && sapcontrol -nr {{ _sap_patching_instance_list[0][1] }} -format script -function GetSystemInstanceList |  grep 'dispstatus:\|FAIL'
+    #     source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }} -format script -function GetSystemInstanceList |  grep 'dispstatus:\|FAIL'
     #   args:
     #     executable: /bin/bash
     #   become: true
-    #   become_user: "{{ _sap_patching_sap_system_sid | lower }}adm"
-    #   register: _sap_patching_instances_check_stopped
-    #   until: "'GREEN' not in _sap_patching_instances_check_stopped.stdout"
+    #   become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+    #   register: __sap_patching_register_instances_check_stopped
+    #   until: "'GREEN' not in __sap_patching_register_instances_check_stopped.stdout"
     #   retries: 30
     #   delay: 20
-    #   failed_when: "'FAIL' in _sap_patching_instances_check_stopped.stdout"
+    #   failed_when: "'FAIL' in __sap_patching_register_instances_check_stopped.stdout"
     #   changed_when: false

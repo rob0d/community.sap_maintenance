@@ -1,12 +1,12 @@
 ---
 - name: Inject ABAP kernel variables to reuse kernel_apply task
   ansible.builtin.set_fact:
-    _sap_patching_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
-    _sap_patching_kernel_to_apply: "{{ sap_patching_kernel_to_apply | d() }}"
-    _sap_patching_kernel_to_apply_symlink: "{{ sap_patching_kernel_to_apply_symlink }}"
-    _sap_patching_kernel_base: "{{ sap_patching_kernel_base }}"
-    _sap_patching_kernel_extracted_shared: "{{ sap_patching_kernel_extracted_shared }}"
-    _sap_patching_kernel_or_webdisp: "abap_kernel"
+    __sap_patching_fact_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
+    __sap_patching_fact_kernel_to_apply: "{{ sap_patching_kernel_to_apply | d() }}"
+    __sap_patching_fact_kernel_to_apply_symlink: "{{ sap_patching_kernel_to_apply_symlink }}"
+    __sap_patching_fact_kernel_base: "{{ sap_patching_kernel_base }}"
+    __sap_patching_fact_kernel_extracted_shared: "{{ sap_patching_kernel_extracted_shared }}"
+    __sap_patching_fact_kernel_or_webdisp: "abap_kernel"
 
 - name: Execute kernel apply function to apply ABAP kernel patch
   ansible.builtin.include_tasks:

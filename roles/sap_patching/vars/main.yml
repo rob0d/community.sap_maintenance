@@ -1,29 +1,31 @@
 ---
 # Note:
-# The 'where' condition must evaluate to a boolean true/false in YAML format. - NOT USED anymore. To be removed in future.
-# tags - not used, replaced by execution plan
+# The 'where' condition must evaluate to a boolean true/false in YAML format. - NOT USED anymore. To be removed at the end of 2027.
+# tags - not used, replaced by execution plan. To be removed at the end of 2027.
 # vars - set as sap_patching_params dictionary containing all variables for the task file
-sap_patching_exec_def:
+__sap_patching_exec_def:
   # ABAP kernel
-  # abap_kernel:
-  #   file: nw/abap_kernel.yml
-  #   where: true
-  #   tags:
-  #     - sap_patching_abap_kernel
-  #   vars:
-    # run_once: false
   abap_kernel_prepare:
     file: nw/abap_kernel_prepare.yml
+    validators:
+      - abap
+      - prepare
     where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
     vars:
     run_once: true
   abap_kernel_apply:
     file: nw/abap_kernel_apply.yml
+    validators:
+      - abap
+      - kernel
     where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
     vars:
     run_once: true
   abap_kernel_restart:
     file: nw/abap_kernel_restart.yml
+    validators:
+      - abap
+      - kernel
     where: "{% if group_names | select('search', '^nwas_abap.*') | list | length > 0 %}true{% else %}false{% endif %}"
     vars:
     run_once: false
@@ -31,6 +33,9 @@ sap_patching_exec_def:
   # HANA DB client
   hdb_client_prepare:
     file: hana/hdb_client_prepare.yml
+    validators:
+      - hdb_client
+      - prepare
     where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
     tags:
       - sap_patching_hdb_client_prepare
@@ -38,6 +43,8 @@ sap_patching_exec_def:
     run_once: true
   hdb_client_apply:
     file: hana/hdb_client_apply.yml
+    validators:
+      - hdb_client
     where: "{% if 'nwas_abap_pas' in group_names or 'nwas_abap_aas' in group_names %}true{% else %}false{% endif %}"
     tags:
       - sap_patching_hdb_client_apply
@@ -47,23 +54,31 @@ sap_patching_exec_def:
   # HANA DB server platform
   hdb_server_prepare:
     file: hana/hdb_server_prepare.yml
+    validators:
+      - hdb_server
     where:
     vars:
     run_once: true
   hdb_server_apply:
     file: hana/hdb_server_apply.yml
+    validators:
+      - hdb_server
     where:
     vars:
       update_mode: full
     run_once: false
   hdb_server_update_prepare:
     file: hana/hdb_server_apply.yml
+    validators:
+      - hdb_server
     where:
     vars:
       update_mode: prepare
     run_once: false
   hdb_server_update_resume:
     file: hana/hdb_server_apply.yml
+    validators:
+      - hdb_server
     where:
     vars:
       update_mode: resume
@@ -72,17 +87,23 @@ sap_patching_exec_def:
   # Host agent
   host_agent_prepare:
     file: agents/host_agent_prepare.yml
+    validators:
+      - host_agent
     where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
     vars:
     run_once: true
   host_agent_apply_auto:
     file: agents/host_agent_apply.yml
+    validators:
+      - host_agent
     where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
     vars:
       update_mode: auto
     run_once: true
   host_agent_apply_manual:
     file: agents/host_agent_apply.yml
+    validators:
+      - host_agent
     where: true
     vars:
       update_mode: manual
@@ -91,16 +112,22 @@ sap_patching_exec_def:
   # Web disp
   webdisp_prepare:
     file: nw/webdisp_prepare.yml
+    validators:
+      - webdisp
     where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
     vars:
     run_once: true
   webdisp_apply:
     file: nw/webdisp_apply.yml
+    validators:
+      - webdisp
     where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
     vars:
     run_once: false
   webdisp_restart:
     file: nw/webdisp_restart.yml
+    validators:
+      - webdisp
     where: "{% if group_names | select('search', '^webdisp.*') | list | length > 0 %}true{% else %}false{% endif %}"
     vars:
     run_once: false
@@ -108,6 +135,8 @@ sap_patching_exec_def:
   # All stop tasks
   abap_stop_system:
     file: startstop/abap_stop.yml
+    validators:
+      - abap
     where: "{% if group_names | select('search', '^nwas_abap.*') | list | length > 0 %}true{% else %}false{% endif %}"
     vars:
       sap_control_action: stop_system
@@ -123,6 +152,8 @@ sap_patching_exec_def:
   # All start tasks
   abap_start_system:
     file: startstop/abap_start.yml
+    validators:
+      - abap
     where: "{% if group_names | select('search', '^nwas_abap.*') | list | length > 0 %}true{% else %}false{% endif %}"
     vars:
       sap_control_action: start_system
@@ -134,3 +165,10 @@ sap_patching_exec_def:
   #   vars:
   #     sap_control_action: start_instance
   # run_once: false
+
+# Subfolders which store the extracted files
+__sap_patching_kernel_extracted: extracted
+__sap_patching_hdb_client_extracted: extracted
+__sap_patching_hdb_server_extracted: extracted
+__sap_patching_host_agent_extracted: extracted
+__sap_patching_webdisp_extracted: extracted

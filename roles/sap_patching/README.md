@@ -127,7 +127,7 @@ The following steps are available:
 - `sap_patching_kernel_prepare_version`: (`autodetect` or a specific version).
 What kernel version are we extracting from SAR files - set to 'autodetect' to use disp+work to determine the extracted kernel version and patch number. If for some reason you don't want (or can't) use autodetection, set this a specific kernel version e.g. 793 (format is `<NNN>` where N is a number). The kernel patch will be determined from the name of the SAR files.
 - `sap_patching_kernel_prepare_appendto_version`: To be used when not patching dw or SAPEXE e.g. when adding extra patch like R3trans to existing kernel patch (format `<kernel_version>p<patch_number>`). See  Append-to mode below.
-- `sap_patching_kernel_to_apply`: Either relative (to sap_patching_kernel_base) or absolute path to the kernel which will be applied. If not set, `sap_patching_kernel_to_apply_symlink` will be used. `abap_kernel_prepare` task will set this if it was executed and kernel was extracted. If you want to apply the latest extracted kernel don't set this variable.
+- `sap_patching_kernel_to_apply`: Either relative (to `sap_patching_kernel_base`) or absolute path to the kernel which will be applied. If not set, `sap_patching_kernel_to_apply_symlink` will be used. `abap_kernel_prepare` task will set this if it was executed and kernel was extracted. If you want to apply the latest extracted kernel, don't set this variable and make sure you run the prepare step once before running the apply step (this can be in two separate execution plans or together inside one execution plan).
 - `sap_patching_kernel_extracted_shared`: (`true` or `false`) If true, the kernel source SAR files are expected to be present on the local host (e.g. NFS share). If false, the kernel source SAR files will be copied from the Ansible controller to the target host.
 - `sap_patching_kernel_restart_strategy`: Restart strategy (`bootstrap`, `all`, `rks`)
   - `bootstrap` - Will restart only sapstartsrv and run sapcpe (use this when combining kernel with HANA client updates and want to restart only once).
@@ -167,8 +167,9 @@ The following steps are available:
 
 ### Variables for HANA DB client patching
 
-- `sap_patching_hdb_client_base`: Base HDB client directory where the HDB client SAR file are stored and extraction directories are created
-- `sap_patching_hdb_client_source`: Where the source SAR files are located (used during the prepare step)
+- `sap_patching_hdb_client_base`: Base HDB client directory where the HDB client SAR file are stored and extraction directories are created.
+- `sap_patching_hdb_client_source`: Where the source SAR files are located (used during the prepare step).
+- `sap_patching_hdb_client_to_apply`: Either relative (to `sap_patching_hdb_client_base`) or absolute path to the HDB client which will be applied. If not set, `sap_patching_hdb_client_to_apply_symlink` will be used. `hdb_client_prepare` task will set this if it was executed and HDB client was extracted. If you want to apply the latest extracted HDB client, don't set this variable and make sure you run the prepare step once before running the apply step (this can be in two separate execution plans or together inside one execution plan).
 - `sap_patching_hdb_client_install_path`: If using individual client installation - installation path of the HDB client (used for --path option of hdbinst). Note this is mutually exclusive with `sap_patching_hdb_client_shared_path`.
 - `sap_patching_hdb_client_shared_path`: If using shared client installation - path to the shared directory  (used for --sapmnt option of hdbinst). Note this is mutually exclusive with `sap_patching_hdb_client_install_path`.
 - `sap_patching_hdb_client_extracted_shared`: If true, the extracted HDB client source files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step. If false, the extracted HDB client source files will be copied from the Ansible controller to the target host.
@@ -198,8 +199,9 @@ The following steps are available:
 
 ### Variables for HANA DB server patching
 
-- `sap_patching_hdb_server_base`: Base HDB server directory where the HDB server SAR file are stored and extraction directories are created
-- `sap_patching_hdb_server_source`: Where the source SAR files are located (used during the prepare step)
+- `sap_patching_hdb_server_base`: Base HDB server directory where the HDB server SAR file are stored and extraction directories are created.
+- `sap_patching_hdb_server_source`: Where the source SAR files are located (used during the prepare step).
+- `sap_patching_hdb_server_to_apply`: Either relative (to `sap_patching_hdb_server_base`) or absolute path to the HDB server which will be applied. If not set, `sap_patching_hdb_server_to_apply_symlink` will be used. `hdb_server_prepare` task will set this if it was executed and HDB server was extracted. If you want to apply the latest extracted HDB server, don't set this variable and make sure you run the prepare step once before running the apply step (this can be in two separate execution plans or together inside one execution plan).
 - `sap_patching_hdb_server_install_path`: Installation path of the HDB server (used to check the existing installation). Unless you have a weird non-standard installation, there is no need to set this variable.
 - `sap_patching_hdb_server_cf_system_user`: If set the specified user will be used to perform the update. READ the documentation at [SAP Help here](https://help.sap.com/docs/SAP_HANA_PLATFORM/2c1988d620e04368aa4103bf26f17727/df3de8c31cef45c0847d2804b97604ea.html) to understand the implications of using this option (XSA update does not work with this option for example).
 - `sap_patching_hdb_server_cf_system_user_password`: Password for the HANA user used to perform the update (this is the SYSTEM user unless defined otherwise in sap_patching_hdb_server_cf_system_user).
@@ -241,8 +243,9 @@ The following steps are available:
 
 ### Variables for host agent patching
 
-- `sap_patching_host_agent_base`: Base host agent directory where the host agent SAR file are stored and extraction directories are created
-- `sap_patching_host_agent_source`: Where the source SAR files are located (used during the prepare step)
+- `sap_patching_host_agent_base`: Base host agent directory where the host agent SAR file are stored and extraction directories are created.
+- `sap_patching_host_agent_source`: Where the source SAR files are located (used during the prepare step).
+- `sap_patching_host_agent_to_apply`: Either relative (to `sap_patching_host_agent_base`) or absolute path to the host agent which will be applied. If not set, `sap_patching_host_agent_to_apply_symlink` will be used. `host_agent_prepare` task will set this if it was executed and host agent was extracted. If you want to apply the latest extracted host agent, don't set this variable and make sure you run the prepare step once before running the apply step (this can be in two separate execution plans or together inside one execution plan).
 - `sap_patching_host_agent_autoupdate_path`: If host agent autoupdate is configured (<https://me.sap.com/notes/1473974>) this is the path where it's looking for updates (parameter DIR_NEW in host_profile)
 - `sap_patching_host_agent_extracted_shared`: If true, the extracted host agent source files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step. If false, the extracted host agent source files will be copied from the Ansible controller to the target host.
 - `sap_patching_host_agent_extracted_local_path`: Where to store a local copy of extracted host agent files as they must be present locally in order to run saphostexec. This only applies to manual agent update.
@@ -267,6 +270,7 @@ The following steps are available:
 
 - `sap_patching_webdisp_base`: Base web disp directory where the web disp SAR file are stored and extraction directories are created
 - `sap_patching_webdisp_source`: Where the source SAR files are located (used during the prepare step)
+- `sap_patching_webdisp_to_apply`: Either relative (to `sap_patching_webdisp_base`) or absolute path to the web disp which will be applied. If not set, `sap_patching_webdisp_to_apply_symlink` will be used. `webdisp_prepare` task will set this if it was executed and web disp was extracted. If you want to apply the latest extracted web disp, don't set this variable and make sure you run the prepare step once before running the apply step (this can be in two separate execution plans or together inside one execution plan).
 - `sap_patching_webdisp_extracted_shared`: If true, the extracted web disp files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step. If false, the extracted web disp files will be copied from the Ansible controller to the target host
 
 ### WebDisp Usage

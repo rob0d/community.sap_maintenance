@@ -1,0 +1,15 @@
+---
+- name: Assert that the variable 'sap_patching_sap_system_sid' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_sap_system_sid is defined
+      - sap_patching_sap_system_sid is string
+      - sap_patching_sap_system_sid | length  == 0 or (sap_patching_sap_system_sid | length == 3 and sap_patching_sap_system_sid.isupper())
+    fail_msg: |
+      The variable 'sap_patching_sap_system_sid' is undefined, not upper case, not 3 characters long or invalid.
+      It should be a either empty string (if not required in the execution plan) or a valid SAP system SID (3 characters).
+
+
+- name: Mark validator {{ validator_name }} as executed
+  ansible.builtin.set_fact:
+    __sap_patching_fact_validator_executed[validator_name]: true

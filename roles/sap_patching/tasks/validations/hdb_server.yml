@@ -1,0 +1,148 @@
+---
+- name: Assert that the variable 'sap_patching_hdb_system_sid' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_system_sid is defined
+      - sap_patching_hdb_system_sid is string
+      - sap_patching_hdb_system_sid | length == 3 and sap_patching_hdb_system_sid.isupper()
+    fail_msg: |
+      The variable 'sap_patching_hdb_system_sid' is undefined, not upper case, not 3 characters long or invalid.
+      It should be a valid SAP system SID (3 characters).
+
+- name: Assert that the variable 'sap_patching_hdb_server_base' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_base is defined
+      - sap_patching_hdb_server_base is string
+      - sap_patching_hdb_server_base | length > 0
+      - sap_patching_hdb_server_base is match('^/')
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_base' is undefined, empty, or invalid.
+      It should be an absolute path (starting with /) where HDB server SAR files are stored and extraction directories are created.
+
+- name: Assert that the variable 'sap_patching_hdb_server_source' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_source is defined
+      - sap_patching_hdb_server_source is string
+      - sap_patching_hdb_server_source | length > 0
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_source' is undefined, empty, or invalid.
+      It should be a path where the HDB server SAR files are located (used during the prepare step).
+
+- name: Assert that the variable 'sap_patching_hdb_server_install_path' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_install_path is defined
+      - sap_patching_hdb_server_install_path is string
+      - sap_patching_hdb_server_install_path | length > 0
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_install_path' is undefined, empty, or invalid.
+      It should be the installation path of the HDB server (used to check the existing installation).
+
+- name: Assert that the variable 'sap_patching_hdb_server_system_user' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_system_user is defined
+      - sap_patching_hdb_server_system_user is string
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_system_user' is undefined or invalid.
+      It should be either empty string (to use SYSTEM user) or the username to perform the update.
+
+- name: Assert that the variable 'sap_patching_hdb_server_system_user_password' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_system_user_password is defined
+      - sap_patching_hdb_server_system_user_password is string
+      - sap_patching_hdb_server_system_user_password | length > 0
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_system_user_password' is undefined or invalid.
+      It should be the password for the HANA user used to perform the update (SYSTEM user or custom user).
+
+- name: Assert that the variable 'sap_patching_hdb_server_activate_system_user' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_activate_system_user is defined
+      - sap_patching_hdb_server_activate_system_user is boolean
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_activate_system_user' is undefined or invalid.
+      It should be a boolean (true/false) indicating if the SYSTEM user should be activated prior to patching.
+
+- name: Assert that the variable 'sap_patching_hdb_server_activate_admin_userstore_key' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_activate_admin_userstore_key is defined
+      - sap_patching_hdb_server_activate_admin_userstore_key is string
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_activate_admin_userstore_key' is undefined or invalid.
+      It should be either empty string or the HANA admin user store key (hdbuserstore) to use when activating the SYSTEM user.
+  when: sap_patching_hdb_server_activate_system_user | bool
+
+- name: Assert that the variable 'sap_patching_hdb_server_activate_admin_user' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_activate_admin_user is defined
+      - sap_patching_hdb_server_activate_admin_user is string
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_activate_admin_user' is undefined or invalid.
+      It should be either empty string or the HANA admin username to use when activating the SYSTEM user.
+  when:
+    - sap_patching_hdb_server_activate_system_user | bool
+    - sap_patching_hdb_server_activate_admin_userstore_key | length == 0
+
+- name: Assert that the variable 'sap_patching_hdb_server_activate_admin_password' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_activate_admin_password is defined
+      - sap_patching_hdb_server_activate_admin_password is string
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_activate_admin_password' is undefined or invalid.
+      It should be either empty string or the password of the HANA admin user used when activating the SYSTEM user.
+  when:
+    - sap_patching_hdb_server_activate_system_user | bool
+    - sap_patching_hdb_server_activate_admin_userstore_key | length == 0
+
+- name: Assert that the variable 'sap_patching_hdb_server_is_clustered' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_is_clustered is defined
+      - sap_patching_hdb_server_is_clustered is boolean
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_is_clustered' is undefined or invalid.
+      It should be a boolean (true/false) indicating if the database is clustered (Redhat/Suse with Pacemaker).
+
+- name: Assert that the variable 'sap_patching_hdb_server_clu_hdb_resource_name' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_clu_hdb_resource_name is defined
+      - sap_patching_hdb_server_clu_hdb_resource_name is string
+      - sap_patching_hdb_server_clu_hdb_resource_name | length > 0
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_clu_hdb_resource_name' is undefined, empty, or invalid.
+      It should be the name of the cluster resource for HDB server (used to relocate and put the resource in maintenance mode).
+  when: sap_patching_hdb_server_is_clustered | bool
+
+- name: Assert that the variable 'sap_patching_hdb_server_extracted_shared' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_extracted_shared is defined
+      - sap_patching_hdb_server_extracted_shared is boolean
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_extracted_shared' is undefined or invalid.
+      It should be a boolean (true/false) indicating if extracted HDB server source files are on shared storage (e.g. NFS share).
+
+- name: Assert that the variable 'sap_patching_hdb_server_extracted_local_path' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_extracted_local_path is defined
+      - sap_patching_hdb_server_extracted_local_path is string
+      - sap_patching_hdb_server_extracted_local_path | length > 0
+      - sap_patching_hdb_server_extracted_local_path is match('^/')
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_extracted_local_path' is undefined, empty, or invalid.
+      It should be an absolute path (starting with /) where a local copy of extracted HDB server files is stored to run hdblcm.
+  when: not sap_patching_hdb_server_extracted_shared
+
+- name: Mark validator {{ validator_name }} as executed
+  ansible.builtin.set_fact:
+    __sap_patching_fact_validator_executed[validator_name]: true

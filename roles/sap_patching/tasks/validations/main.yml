@@ -1,0 +1,63 @@
+---
+# Validates all mandatory variables
+# Task dependand variables are validated in their respective validation files (e.g. hdb_server.yml, hdb_client.yml, host_agent.yml)
+
+- name: Assert that the variable 'sap_patching_execution_plan' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_execution_plan is defined
+      - sap_patching_execution_plan is iterable
+      - sap_patching_execution_plan | length > 0
+    fail_msg: |
+      The variable 'sap_patching_execution_plan' is undefined, empty, or invalid.
+      It should be a list of tasks to execute.
+
+- name: Assert that the variable 'sap_patching_kernel_to_apply_symlink' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_kernel_to_apply_symlink is defined
+      - sap_patching_kernel_to_apply_symlink is string
+      - sap_patching_kernel_to_apply_symlink | length > 0
+    fail_msg: |
+      The variable 'sap_patching_kernel_to_apply_symlink' is undefined, empty, or invalid.
+      It should be the name of the symbolic link pointing to the kernel folder to be used by the patching process.
+
+- name: Assert that the variable 'sap_patching_hdb_client_to_apply_symlink' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_client_to_apply_symlink is defined
+      - sap_patching_hdb_client_to_apply_symlink is string
+      - sap_patching_hdb_client_to_apply_symlink | length > 0
+    fail_msg: |
+      The variable 'sap_patching_hdb_client_to_apply_symlink' is undefined, empty, or invalid.
+      It should be the name of the symbolic link pointing to the HDB client folder to be used by the patching process.
+
+- name: Assert that the variable 'sap_patching_hdb_server_to_apply_symlink' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_hdb_server_to_apply_symlink is defined
+      - sap_patching_hdb_server_to_apply_symlink is string
+      - sap_patching_hdb_server_to_apply_symlink | length > 0
+    fail_msg: |
+      The variable 'sap_patching_hdb_server_to_apply_symlink' is undefined, empty, or invalid.
+      It should be the name of the symbolic link pointing to the HDB server folder to be used by the patching process.
+
+- name: Assert that the variable 'sap_patching_host_agent_to_apply_symlink' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_host_agent_to_apply_symlink is defined
+      - sap_patching_host_agent_to_apply_symlink is string
+      - sap_patching_host_agent_to_apply_symlink | length > 0
+    fail_msg: |
+      The variable 'sap_patching_host_agent_to_apply_symlink' is undefined, empty, or invalid.
+      It should be the name of the symbolic link pointing to the host agent folder to be used by the patching process.
+
+- name: Assert that the variable 'sap_patching_webdisp_to_apply_symlink' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_webdisp_to_apply_symlink is defined
+      - sap_patching_webdisp_to_apply_symlink is string
+      - sap_patching_webdisp_to_apply_symlink | length > 0
+    fail_msg: |
+      The variable 'sap_patching_webdisp_to_apply_symlink' is undefined, empty, or invalid.
+      It should be the name of the symbolic link pointing to the web dispatcher folder to be used by the patching process.
