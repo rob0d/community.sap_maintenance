@@ -89,15 +89,15 @@
           ansible.builtin.find:
             paths: "{{ sap_patching_hdb_server_to_apply }}"
             file_type: any
-          register: sap_patching_hdb_server_to_apply_files
+          register: __sap_patching_register_hdb_server_to_apply_files
           changed_when: false
 
         - name: Ensure {{ sap_patching_hdb_server_to_apply }} is not empty and contains server folder and hdblcm
           ansible.builtin.assert:
             that:
               - __sap_patching_register_hdb_server_to_apply_files.matched | int > 0
-              - "'server' in sap_patching_hdb_server_to_apply_files.files | map(attribute='path') | map('basename') | list"
-              - "'hdblcm' in sap_patching_hdb_server_to_apply_files.files | map(attribute='path') | map('basename') | list"
+              - "'server' in __sap_patching_register_hdb_server_to_apply_files.files | map(attribute='path') | map('basename') | list"
+              - "'hdblcm' in __sap_patching_register_hdb_server_to_apply_files.files | map(attribute='path') | map('basename') | list"
             fail_msg: "{{ sap_patching_hdb_server_to_apply }} is empty or doesn't contain required files, this is unexpected for a correctly extracted SAR archive"
             success_msg: "{{ sap_patching_hdb_server_to_apply }} is not empty and contains required files"
           changed_when: false

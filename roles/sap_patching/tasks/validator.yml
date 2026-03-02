@@ -12,7 +12,7 @@
     file: "validations/{{ validator_name }}.yml"
   loop: "{{ __sap_patching_exec_def[item].validators }}"
   loop_control:
-    variable: validator_name
+    loop_var: validator_name
     label: "Executing validator '{{ validator_name }}' for task '{{ __sap_patching_exec_def[item].file }}'"
   when:
     - __sap_patching_exec_def[item].validators is defined

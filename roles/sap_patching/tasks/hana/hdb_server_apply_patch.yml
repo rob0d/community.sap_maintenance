@@ -5,7 +5,7 @@
   block:
     - name: Site info
       when:
-        - "'mode=none' not in _sap_patching_hdb_hsr_srstate.stdout"
+        - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout"
       ansible.builtin.debug:
         msg:
           - "Processing HANA DB server '{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}' on site '{{ _sap_patching_hdb_hsr_site[0] }}'"
@@ -66,7 +66,7 @@
       run_once: true
       when:
         - sap_patching_params.update_mode != 'prepare'
-        - "'mode=none' not in _sap_patching_hdb_hsr_srstate.stdout"
+        - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout"
       block:
         - name: "SAP HSR - Check System Replication Status - again"
           ansible.builtin.shell: |
@@ -181,7 +181,7 @@
             # Loop 30 times with 20 second delay until replication is active
             - name: Check HSR replication state (using hdbcons) on the current site
               when:
-                - "'mode=none' not in _sap_patching_hdb_hsr_srstate.stdout"
+                - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout"
                 - "__sap_patching_register_hdb_hsr_srstatus_target.stdout | d('',true) | length == 0 or 'this system' in __sap_patching_register_hdb_hsr_srstatus_target.stdout"
                 - "_sap_patching_hdb_hsr_srstatus_master.stdout | d('',true) | length == 0 or 'this system' in _sap_patching_hdb_hsr_srstatus_master.stdout"
               ansible.builtin.shell: |

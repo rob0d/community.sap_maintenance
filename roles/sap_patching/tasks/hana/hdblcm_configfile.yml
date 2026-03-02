@@ -10,12 +10,12 @@
 
 #We are delegating this whole section. To avoid issues with old Ansible versions we are not using hostvars[inventory_hostname]['ansible_hostname'] but our own variable.
 - name: Set config file location fact (HSR enabled)
-  when: "'mode=none' not in _sap_patching_hdb_hsr_srstate.stdout"
+  when: "'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout"
   ansible.builtin.set_fact:
     __sap_patching_fact_hdb_hdblcm_configfile: "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_register_hdb_hdblcm_git_hash_version.stdout }}/{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}_hdblcm_configfile.cfg"
 
 - name: Set config file location fact (non-HSR)
-  when: "'mode=none' in _sap_patching_hdb_hsr_srstate.stdout"
+  when: "'mode=none' in __sap_patching_register_hdb_hsr_srstate.stdout"
   ansible.builtin.set_fact:
     __sap_patching_fact_hdb_hdblcm_configfile: "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_register_hdb_hdblcm_git_hash_version.stdout }}/{{ ansible_hostname }}_hdblcm_configfile.cfg"
 

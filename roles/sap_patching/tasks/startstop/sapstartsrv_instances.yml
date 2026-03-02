@@ -7,18 +7,28 @@
 #   changed_when: false
 #   failed_when: __sap_patching_register_sap_instances.rc != 0
 
-# TODO: Consider using lssap instead? That will show all not just running sapstartsrv instances
+
+- name: Check if <sid>adm user exists
+  ansible.builtin.command: getent passwd {{ __sap_patching_fact_sap_system_sid | lower }}adm
+  register: __sap_patching_register_adm_user
+  changed_when: false
+  failed_when: false
+
+# RD: Consider using lssap instead? That will show all, not just running sapstartsrv instances
 # /usr/sap/hostctrl/exe/lssap | grep {{ __sap_patching_fact_sap_system_sid | upper }} | awk -F '|' '{print $2}'
-# Also ignoring SUM and HDB sapstartsrv processes
-- name: Get all running instances of sapstartsrv on the current host based on the running sapstartsrv processes
+# Also we are ignoring SUM and HDB sapstartsrv processes
+# Also not using pipefail as we have grep which can return 1 if no lines are found which we want to ignore but we still want to catch errors from ps command itself
+- name: Get all running instances of sapstartsrv on the current host based on the running sapstartsrv processes # noqa risky-shell-pipe
   ansible.builtin.shell: |
-    set -o pipefail && ps -U {{ __sap_patching_fact_sap_system_sid | lower }}adm -o cmd --no-header | grep sapstartsrv | grep -v SUM | grep -v HDB | grep -v grep | awk -F '/' '{print $5}'
+    ps -U {{ __sap_patching_fact_sap_system_sid | lower }}adm -o cmd --no-header | grep sapstartsrv | grep -v SUM | grep -v HDB | grep -v grep | awk -F '/' '{print $5}'
   register: __sap_patching_register_sap_instances
   changed_when: false
-  failed_when: __sap_patching_register_sap_instances.rc != 0
+  failed_when: "__sap_patching_register_sap_instances.rc != 0 and 'error: user name does not exist' not in __sap_patching_register_sap_instances.stderr"
+  when: __sap_patching_register_adm_user.rc == 0
 
 # The instance list should contain W, D, ASCS or ERS
 - name: Parse instance types and numbers from __sap_patching_register_sap_instances output
   ansible.builtin.set_fact:
     __sap_patching_fact_instance_list: "{{ __sap_patching_register_sap_instances.stdout_lines | map('regex_search', '([A-Z]+)([0-9]{2})', '\\1', '\\2') }}"
-    __sap_patching_fact_instance_dict: "{{ __sap_patching_fact_instance_list | community.general.dict }}"
+    __sap_patching_fact_instance_dict: "{{ __sap_patching_register_sap_instances.stdout_lines | map('regex_search', '([A-Z]+)([0-9]{2})', '\\1', '\\2') | community.general.dict }}"
+  when: __sap_patching_register_sap_instances.stdout_lines is defined and __sap_patching_register_sap_instances.stdout_lines | length > 0

@@ -15,7 +15,7 @@
     file: ../startstop/sapstartsrv_instances.yml
 
 - name: Proceed only if at least one instance is found
-  when: __sap_patching_fact_instance_list | length > 0
+  when: __sap_patching_fact_instance_list | d([]) | length > 0
   block:
 
     # Handle sapuxuserchk manually just before patching as sapcpe can't deal with files owned by root and s-uid set

@@ -9,7 +9,7 @@
     file: sapstartsrv_instances.yml
 
 - name: Proceed only if at least one instance is found
-  when: __sap_patching_fact_instance_list | length > 0
+  when: __sap_patching_fact_instance_list | d([]) | length > 0
   block:
 
     - name: Block to stop the system and wait until all instances are down
