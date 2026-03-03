@@ -26,7 +26,7 @@
       {% else %}
         The variable '{{ item }}' is empty.
       {% endif %}
-      It should be the name of the symbolic link pointing to the kernel folder to be used by the patching process.
+        It should be the name of the symbolic link pointing to the kernel folder to be used by the patching process.
   loop:
     - sap_patching_kernel_to_apply_symlink
     - sap_patching_hdb_client_to_apply_symlink
