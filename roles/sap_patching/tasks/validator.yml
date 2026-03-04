@@ -18,4 +18,4 @@
     - __sap_patching_exec_def[item].validators is defined
     - __sap_patching_exec_def[item].validators | length > 0
     - __sap_patching_exec_def[item].validators is iterable
-    - __sap_patching_validator_executed[validator_name] | default(false) | bool
+    - not (((__sap_patching_fact_validator_executed | default({})).get(validator_name, false)) | bool)

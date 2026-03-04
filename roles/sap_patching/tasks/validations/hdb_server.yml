@@ -49,14 +49,14 @@
       The variable 'sap_patching_hdb_server_system_user' is undefined or invalid.
       It should be either empty string (to use SYSTEM user) or the username to perform the update.
 
-- name: Assert that the variable 'sap_patching_hdb_server_system_user_password' is defined and valid
+- name: Assert that the variable 'sap_patching_hdb_server_cf_system_user_password' is defined and valid
   ansible.builtin.assert:
     that:
-      - sap_patching_hdb_server_system_user_password is defined
-      - sap_patching_hdb_server_system_user_password is string
-      - sap_patching_hdb_server_system_user_password | length > 0
+      - sap_patching_hdb_server_cf_system_user_password is defined
+      - sap_patching_hdb_server_cf_system_user_password is string
+      - sap_patching_hdb_server_cf_system_user_password | length > 0
     fail_msg: |
-      The variable 'sap_patching_hdb_server_system_user_password' is undefined or invalid.
+      The variable 'sap_patching_hdb_server_cf_system_user_password' is undefined or invalid.
       It should be the password for the HANA user used to perform the update (SYSTEM user or custom user).
 
 - name: Assert that the variable 'sap_patching_hdb_server_activate_system_user' is defined and valid
@@ -145,4 +145,4 @@
 
 - name: Mark validator {{ validator_name }} as executed
   ansible.builtin.set_fact:
-    __sap_patching_fact_validator_executed[validator_name]: true
+    __sap_patching_fact_validator_executed: "{{ __sap_patching_fact_validator_executed | default({}) | combine({validator_name: true}) }}"

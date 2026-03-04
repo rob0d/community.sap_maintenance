@@ -79,15 +79,6 @@
       The variable 'sap_patching_kernel_restart_strategy' is undefined or invalid.
       It should be one of: 'all' (restart whole system), 'rks' (Rolling Kernel Switch), or 'bootstrap' (restart only sapstartsrv).
 
-- name: Assert that the variable 'sap_patching_kernel_global_exe' is defined and valid
-  ansible.builtin.assert:
-    that:
-      - sap_patching_kernel_global_exe is defined
-      - sap_patching_kernel_global_exe is string
-    fail_msg: |
-      The variable 'sap_patching_kernel_global_exe' is undefined or invalid.
-      It should be either empty string (to use default) or the global executable directory for the SAP kernel.
-
 - name: Assert that the variable 'sap_patching_rks_wait_timeout' is defined and valid
   ansible.builtin.assert:
     that:
@@ -100,4 +91,4 @@
 
 - name: Mark validator {{ validator_name }} as executed
   ansible.builtin.set_fact:
-    __sap_patching_fact_validator_executed[validator_name]: true
+    __sap_patching_fact_validator_executed: "{{ __sap_patching_fact_validator_executed | default({}) | combine({validator_name: true}) }}"

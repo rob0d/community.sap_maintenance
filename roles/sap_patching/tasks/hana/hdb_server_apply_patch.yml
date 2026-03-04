@@ -134,6 +134,7 @@
                 #   source ~/.profile && HDBSettings.sh systemReplicationStatus.py | \
                 # awk -F '|' '/^this system/ {print} $9 ~ /{{ hostvars[inventory_hostname]['ansible_hostname'] }}/ {print $17}'
                 #__sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] == __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]]
+
             - name: Check HSR replication state of replication target (using Python script) on master site
               delegate_to: "{{ __sap_patching_fact_hdb_host_fqdn[__sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first]] }}"
               when:
@@ -152,6 +153,10 @@
               retries: 30
               delay: 20
               changed_when: false
+              failed_when:
+                - __sap_patching_register_hdb_hsr_srstatus_target.rc != 0  # Some error
+                - not (__sap_patching_register_hdb_hsr_srstatus_target.rc >= 10 and __sap_patching_register_hdb_hsr_srstatus_target.rc <= 15) # Valid systemReplicationStatus return codes
+
 
             - name: Check HSR replication state of replication master (using Python script) on master site
               delegate_to: "{{ __sap_patching_fact_hdb_host_fqdn[__sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first]] }}"
@@ -171,6 +176,9 @@
               retries: 30
               delay: 20
               changed_when: false
+              failed_when:
+                - __sap_patching_register_hdb_hsr_srstatus_target.rc != 0  # Some error
+                - not (__sap_patching_register_hdb_hsr_srstatus_target.rc >= 10 and __sap_patching_register_hdb_hsr_srstatus_target.rc <= 15) # Valid systemReplicationStatus return codes
 
             # <sid>adm@hdbserver01:/usr/sap/<SID>/HDB00> hdbcons "replication info"| grep ReplicationStatus_ | awk -F ':' '{print $2}' | sed -n 's/.*ReplicationStatus_\(.*\)/\1/p'
             # Error
