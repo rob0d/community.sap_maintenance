@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+
+- name: SAP Patching - Validation - Verify that plan step '{{ __sap_patching_step }}' is valid
+  ansible.builtin.assert:
+    that:
+      - __sap_patching_step in __sap_patching_exec_def.keys()
+    fail_msg: |
+      FAIL: Execution plan step '{{ __sap_patching_step }}' is not valid.
+      List of valid steps: {{ __sap_patching_exec_def.keys() | list | join(', ') }}.
+  run_once: true
+
+
+- name: SAP Patching - Validation - Include validation task file for step '{{ __sap_patching_step }}'
+  ansible.builtin.include_tasks:
+    file: "validations/{{ validation_item }}.yml"
+  loop: "{{ __sap_patching_exec_def[__sap_patching_step].validators }}"
+  loop_control:
+    loop_var: validation_item
+    label: "Executing validator '{{ validation_item }}' for task '{{ __sap_patching_exec_def[__sap_patching_step].file }}'"
+  when:
+    - __sap_patching_exec_def[__sap_patching_step].validators is defined
+    - __sap_patching_exec_def[__sap_patching_step].validators | type_debug == 'list'
+    - __sap_patching_exec_def[__sap_patching_step].validators | trim | length > 0
+    - validation_item not in (__sap_patching_fact_validations_completed | d([]))

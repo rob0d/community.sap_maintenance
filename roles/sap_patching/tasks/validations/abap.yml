@@ -1,15 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-- name: Assert that the variable 'sap_patching_sap_system_sid' is defined and valid
+
+- name: SAP Patching - Validation - ABAP - Assert that the variable 'sap_patching_sap_system_sid' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_sap_system_sid is defined
       - sap_patching_sap_system_sid is string
-      - sap_patching_sap_system_sid | length  == 0 or (sap_patching_sap_system_sid | length == 3 and sap_patching_sap_system_sid.isupper())
+      - sap_patching_sap_system_sid | trim | length == 3
     fail_msg: |
-      The variable 'sap_patching_sap_system_sid' is undefined, not upper case, not 3 characters long or invalid.
-      It should be a either empty string (if not required in the execution plan) or a valid SAP system SID (3 characters).
+      {% if sap_patching_sap_system_sid is not defined %}
+        FAIL: The 'sap_patching_sap_system_sid' variable must be defined as non-empty string.
+      {% elif sap_patching_sap_system_sid is not string %}
+        FAIL: The 'sap_patching_sap_system_sid' variable must be a string,
+        but it is of type '{{ sap_patching_sap_system_sid | type_debug }}'.
+      {% else %}
+        FAIL: The 'sap_patching_sap_system_sid' variable must be 3 letter string.
+      {% endif %}
 
 
-- name: Mark validator {{ validator_name }} as executed
+- name: SAP Patching - Validation - ABAP - Set fact that validation was completed
   ansible.builtin.set_fact:
-    __sap_patching_fact_validator_executed: "{{ __sap_patching_fact_validator_executed | default({}) | combine({validator_name: true}) }}"
+    __sap_patching_fact_validations_completed:
+      "{{ __sap_patching_fact_validations_completed | d([]) + [validation_item] }}"

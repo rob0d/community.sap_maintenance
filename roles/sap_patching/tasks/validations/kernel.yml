@@ -1,5 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-- name: Assert that the variable 'sap_patching_sap_system_sid' is defined and valid
+
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_sap_system_sid' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_sap_system_sid is defined
@@ -9,7 +11,7 @@
       The variable 'sap_patching_sap_system_sid' is undefined, not upper case, not 3 characters long or invalid.
       It should be a either empty string (if not required in the execution plan) or a valid SAP system SID (3 characters).
 
-- name: Assert that the variable 'sap_patching_kernel_base' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_base' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_kernel_base is defined
@@ -20,17 +22,17 @@
       The variable 'sap_patching_kernel_base' is undefined, empty, or invalid.
       It should be an absolute path (starting with /) where kernel SP directories are created.
 
-- name: Assert that the variable 'sap_patching_kernel_source' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable '__sap_patching_kernel_source' is defined and valid
   ansible.builtin.assert:
     that:
-      - sap_patching_kernel_source is defined
-      - sap_patching_kernel_source is string
-      - sap_patching_kernel_source | length > 0
+      - __sap_patching_kernel_source is defined
+      - __sap_patching_kernel_source is string
+      - __sap_patching_kernel_source | length > 0
     fail_msg: |
-      The variable 'sap_patching_kernel_source' is undefined, empty, or invalid.
+      The variable '__sap_patching_kernel_source' is undefined, empty, or invalid.
       It should be a path where the kernel SAR files are located.
 
-- name: Assert that the variable 'sap_patching_kernel_prepare_version' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_prepare_version' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_kernel_prepare_version is defined
@@ -41,17 +43,17 @@
       The variable 'sap_patching_kernel_prepare_version' is undefined or invalid.
       It should be either 'autodetect' or a 3-digit kernel version number (e.g. '793').
 
-- name: Assert that the variable 'sap_patching_kernel_prepare_appendto_version' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_prepare_append_to_version' is defined and valid
   ansible.builtin.assert:
     that:
-      - sap_patching_kernel_prepare_appendto_version is defined
-      - sap_patching_kernel_prepare_appendto_version is string
-      - sap_patching_kernel_prepare_appendto_version | length == 0 or sap_patching_kernel_prepare_appendto_version is match('^\d{3,4}p\d+$')
+      - sap_patching_kernel_prepare_append_to_version is defined
+      - sap_patching_kernel_prepare_append_to_version is string
+      - sap_patching_kernel_prepare_append_to_version | length == 0 or sap_patching_kernel_prepare_append_to_version is match('^\d{3,4}p\d+$')
     fail_msg: |
-      The variable 'sap_patching_kernel_prepare_appendto_version' is undefined or invalid.
+      The variable 'sap_patching_kernel_prepare_append_to_version' is undefined or invalid.
       It should be either empty string or in format '<kernel_version>p<patch_number>' (e.g. '793p320').
 
-- name: Assert that the variable 'sap_patching_kernel_to_apply' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_to_apply' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_kernel_to_apply is defined
@@ -60,7 +62,7 @@
       The variable 'sap_patching_kernel_to_apply' is undefined or invalid.
       It should be either empty string (to use default symlink) or a path to the kernel to be applied.
 
-- name: Assert that the variable 'sap_patching_kernel_extracted_shared' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_extracted_shared' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_kernel_extracted_shared is defined
@@ -69,7 +71,7 @@
       The variable 'sap_patching_kernel_extracted_shared' is undefined or invalid.
       It should be a boolean (true/false) indicating if kernel source SAR files are on shared storage.
 
-- name: Assert that the variable 'sap_patching_kernel_restart_strategy' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_restart_strategy' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_kernel_restart_strategy is defined
@@ -79,7 +81,7 @@
       The variable 'sap_patching_kernel_restart_strategy' is undefined or invalid.
       It should be one of: 'all' (restart whole system), 'rks' (Rolling Kernel Switch), or 'bootstrap' (restart only sapstartsrv).
 
-- name: Assert that the variable 'sap_patching_rks_wait_timeout' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_rks_wait_timeout' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_rks_wait_timeout is defined
@@ -89,6 +91,17 @@
       The variable 'sap_patching_rks_wait_timeout' is undefined or invalid.
       It should be a positive integer (in seconds) greater than 0, typically more than rdisp/server_startup/max_time (default: 600).
 
-- name: Mark validator {{ validator_name }} as executed
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_restart_strategy' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_kernel_restart_strategy is defined
+      - sap_patching_kernel_restart_strategy is string
+      - sap_patching_kernel_restart_strategy in ['bootstrap', 'all', 'rks']
+    fail_msg: |
+      FAIL: The variable 'sap_patching_kernel_restart_strategy' must be one of: 'bootstrap', 'all', 'rks'.
+
+
+- name: SAP Patching - Validation - Kernel - Set fact that validation was completed
   ansible.builtin.set_fact:
-    __sap_patching_fact_validator_executed: "{{ __sap_patching_fact_validator_executed | default({}) | combine({validator_name: true}) }}"
+    __sap_patching_fact_validations_completed:
+      "{{ __sap_patching_fact_validations_completed | d([]) + [validation_item] }}"

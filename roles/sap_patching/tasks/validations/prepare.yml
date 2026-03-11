@@ -1,15 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-- name: Assert that the variable 'sap_patching_sapcar_path' is defined and valid
+
+- name: SAP Patching - Validation - Prepare - Assert that the variable '__sap_patching_sapcar_path' is defined and valid
   ansible.builtin.assert:
     that:
-      - sap_patching_sapcar_path is defined
-      - sap_patching_sapcar_path is string
-      - sap_patching_sapcar_path | length > 0
+      - __sap_patching_sapcar_path is defined
+      - __sap_patching_sapcar_path is string
+      - __sap_patching_sapcar_path | length > 0
     fail_msg: |
-      The variable 'sap_patching_sapcar_path' is undefined, empty, or invalid.
+      The variable '__sap_patching_sapcar_path' is undefined, empty, or invalid.
       It should be a string containing a valid file path.
 
-- name: Assert that the variable 'sap_patching_sapcar_file_name' is defined and valid
+- name: SAP Patching - Validation - Prepare - Assert that the variable 'sap_patching_sapcar_file_name' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_sapcar_file_name is defined
@@ -19,7 +21,7 @@
       The variable 'sap_patching_sapcar_file_name' is undefined, empty, or invalid.
       It should be a string containing a valid file name.
 
-- name: Assert that the variable 'sap_patching_file_owner' is defined and valid
+- name: SAP Patching - Validation - Prepare - Assert that the variable 'sap_patching_file_owner' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_file_owner is defined
@@ -29,7 +31,7 @@
       The variable 'sap_patching_file_owner' is undefined, empty, or invalid.
       It should be a string containing a valid user.
 
-- name: Assert that the variable 'sap_patching_file_group' is defined and valid
+- name: SAP Patching - Validation - Prepare - Assert that the variable 'sap_patching_file_group' is defined and valid
   ansible.builtin.assert:
     that:
       - sap_patching_file_group is defined
@@ -39,6 +41,8 @@
       The variable 'sap_patching_file_group' is undefined, empty, or invalid.
       It should be a string containing a valid group.
 
-- name: Mark validator {{ validator_name }} as executed
+
+- name: SAP Patching - Validation - Prepare - Set fact that validation was completed
   ansible.builtin.set_fact:
-    __sap_patching_fact_validator_executed: "{{ __sap_patching_fact_validator_executed | default({}) | combine({validator_name: true}) }}"
+    __sap_patching_fact_validations_completed:
+      "{{ __sap_patching_fact_validations_completed | d([]) + [validation_item] }}"

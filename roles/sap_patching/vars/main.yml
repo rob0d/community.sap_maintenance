@@ -1,5 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-# Note:
+
+# NOTE: Do not change variables in this file as they define how execution steps are executed and validated.
+# Variables in this file are not meant to be overridden by users.
+# User variables should be defined in the 'defaults/main.yml' file or passed as extra-vars.
+
+
 # The 'where' condition must evaluate to a boolean true/false in YAML format. - NOT USED anymore. To be removed at the end of 2027.
 # tags - not used, replaced by execution plan. To be removed at the end of 2027.
 # vars - set as sap_patching_params dictionary containing all variables for the task file
@@ -166,9 +172,24 @@ __sap_patching_exec_def:
   #     sap_control_action: start_instance
   # run_once: false
 
-# Subfolders which store the extracted files
+# Default sub-folders names which store the extracted files
 __sap_patching_kernel_extracted: extracted
 __sap_patching_hdb_client_extracted: extracted
 __sap_patching_hdb_server_extracted: extracted
 __sap_patching_host_agent_extracted: extracted
 __sap_patching_webdisp_extracted: extracted
+
+# Default paths without trailing slash
+__sap_patching_kernel_source: "{{ sap_patching_kernel_source | regex_replace('\\/$', '') }}"
+__sap_patching_kernel_base: "{{ sap_patching_kernel_base | regex_replace('\\/$', '') }}"
+__sap_patching_sapcar_path: "{{ sap_patching_sapcar_path | regex_replace('\\/$', '') }}"
+__sap_patching_webdisp_base: "{{ sap_patching_webdisp_base | regex_replace('\\/$', '') }}"
+
+# Default boolean variables
+__sap_patching_kernel_normal_mode: true
+__sap_patching_kernel_append_mode: false
+__sap_patching_kernel_delta_mode: false
+
+# Global executable directory for the SAP kernel
+# Generally no need to change this as it defaults to /usr/sap/<SID>/SYS/exe/run
+__sap_patching_fact_kernel_global_exe: ''

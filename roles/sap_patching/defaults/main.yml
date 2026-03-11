@@ -1,4 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
+
 ####################        General settings        ####################
 # This drives what actions this role takes and in what order
 sap_patching_execution_plan: []
@@ -31,7 +33,7 @@ sap_patching_kernel_prepare_version: autodetect
 
 # To be used when not patching dw or SAPEXE e.g. when adding extra patch like R3trans to existing kernel patch
 # Format is <kernel_version>p<patch_number> e.g. 793p320
-sap_patching_kernel_prepare_appendto_version: ''
+sap_patching_kernel_prepare_append_to_version: ''
 
 # Either relative (to sap_patching_kernel_base) or absolute path to the kernel which will be applied
 # If not set, sap_patching_kernel_to_apply_symlink will be used
@@ -178,10 +180,6 @@ sap_patching_webdisp_extracted_shared: true
 # Generally no need to change anything below this line #
 # Unless you know what you are doing ...               #
 ########################################################
-
-# Global executable directory for the SAP kernel
-# Generally no need to change this as it defaults to /usr/sap/<SID>/SYS/exe/run
-__sap_patching_fact_kernel_global_exe: ''
 
 # RKS wait timeout in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
 sap_patching_rks_wait_timeout: 900

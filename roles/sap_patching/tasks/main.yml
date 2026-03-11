@@ -1,29 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-#### Validate required variables ####
-- name: Validate mandatory variables
+
+- name: SAP Patching - Validate variables
   ansible.builtin.include_tasks:
     file: validations/main.yml
+  tags:
+    - always
 
-- name: Execute validator for each step in the execution plan
-  ansible.builtin.include_tasks:
-    file: validator.yml
-  loop: "{{ sap_patching_execution_plan }}"
-  loop_control:
-    label: "Checking step: {{ item }}"
 
-# - name: Looping through the execution plan
-#   debug:
-#     msg:
-#       - "Executing step: {{ item }}"
-#       - "{{ __sap_patching_exec_def[item].file }}"
-#       - "{{ __sap_patching_exec_def[item].tags }}"
-#       - "{{ __sap_patching_exec_def[item].where }}"
-#   loop: "{{ sap_patching_execution_plan }}"
-#   loop_control:
-#     label: "Executing step: {{ item }}"
-#   when: "__sap_patching_exec_def[item].where | from_yaml"
-
-- name: Looping through the execution plan
+- name: SAP Patching - Include task file for each step in the execution plan
   ansible.builtin.include_tasks:
     file: main_loop.yml
   loop: "{{ sap_patching_execution_plan }}"
@@ -31,3 +16,11 @@
     loop_var: __sap_patching_step
     label: "Executing step: {{ __sap_patching_step }}"
   # when: "__sap_patching_exec_def[__sap_patching_step].where | from_yaml"
+  when:
+    - __sap_patching_exec_def is defined
+    - __sap_patching_exec_def is mapping
+    - __sap_patching_exec_def | length > 0
+    - __sap_patching_exec_def[__sap_patching_step] is defined
+    - __sap_patching_exec_def[__sap_patching_step].file is defined
+  tags:
+    - always

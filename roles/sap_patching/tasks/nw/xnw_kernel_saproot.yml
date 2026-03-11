@@ -1,14 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-- name: Check if saproot.sh exists and is executable
+
+- name: SAP Patching - Kernel - Saproot - Check if saproot.sh exists and is executable
   ansible.builtin.stat:
-    path: /usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run/saproot.sh
+    path: /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/run/saproot.sh
   register: __sap_patching_register_kernel_saproot_sh_stat
 
-- name: Execute saproot.sh to adjust permissions after patching
-  become: true
-  when: __sap_patching_register_kernel_saproot_sh_stat.stat.exists and __sap_patching_register_kernel_saproot_sh_stat.stat.mode is search('..7$|..5$|..1$')
-  ansible.builtin.shell: |
-    /usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run/saproot.sh {{ __sap_patching_fact_sap_system_sid | upper }}
+# Reason for noqa: Shell retains the environment variables.
+- name: SAP Patching - Kernel - Saproot - Execute saproot.sh to adjust permissions after patching  # noqa command-instead-of-shell
+  ansible.builtin.shell:
+    cmd: /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/run/saproot.sh {{ __sap_patching_fact_sap_system_sid }}
+  become: true  # Saproot is executed as root user
   register: __sap_patching_register_kernel_saproot
   changed_when: __sap_patching_register_kernel_saproot.rc == 0
+  when:
+    - __sap_patching_register_kernel_saproot_sh_stat.stat.exists
+    - __sap_patching_register_kernel_saproot_sh_stat.stat.mode is search('..7$|..5$|..1$')
   failed_when: __sap_patching_register_kernel_saproot.rc != 0

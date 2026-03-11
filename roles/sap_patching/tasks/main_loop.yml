@@ -1,17 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
+
 # - name: Set task parameter variables
 #   ansible.builtin.set_fact:
 #     "{{ param_item.key }}": "{{ param_item.value }}"
-#   with_dict: "{{ __sap_patching_exec_def[item].vars | default({}) }}"
+#   with_dict: "{{ __sap_patching_exec_def[item].vars | d({}) }}"
 #   loop_control:
 #     loop_var: param_item
 
-- name: Executing step {{ __sap_patching_step }}
+- name: SAP Patching - Executing step {{ __sap_patching_step }}
   # when: "__sap_patching_exec_def[__sap_patching_step].where | from_yaml"
   ansible.builtin.include_tasks:
     file: "{{ __sap_patching_exec_def[__sap_patching_step].file }}"
-  run_once: "{{ __sap_patching_exec_def[__sap_patching_step].run_once | default(false) }}"
+  run_once: "{{ __sap_patching_exec_def[__sap_patching_step].run_once | d(false) }}"
   vars:
-    sap_patching_params: "{{ __sap_patching_exec_def[__sap_patching_step].vars | default({}) }}"
+    sap_patching_params: "{{ __sap_patching_exec_def[__sap_patching_step].vars | d({}) }}"
   tags:
     - always

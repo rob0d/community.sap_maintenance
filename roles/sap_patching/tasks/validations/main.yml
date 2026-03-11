@@ -1,35 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-# Validates all mandatory variables
-# Task dependand variables are validated in their respective validation files (e.g. hdb_server.yml, hdb_client.yml, host_agent.yml)
 
-- name: Assert that the variable 'sap_patching_execution_plan' is defined and valid
+- name: SAP Patching - Validation - Assert that the variable 'sap_patching_execution_plan' is defined as non-empty list
   ansible.builtin.assert:
     that:
       - sap_patching_execution_plan is defined
-      - sap_patching_execution_plan is iterable
+      - sap_patching_execution_plan | type_debug == 'list'
       - sap_patching_execution_plan | length > 0
     fail_msg: |
-      The variable 'sap_patching_execution_plan' is undefined, empty, or invalid.
-      It should be a list of tasks to execute.
+      {% if sap_patching_execution_plan is not defined %}
+        FAIL: The 'sap_patching_execution_plan' variable must be defined as non-empty list.
+      {% elif sap_patching_execution_plan | type_debug != 'list' %}
+        FAIL: The 'sap_patching_execution_plan' variable must be a list,
+        but it is of type '{{ sap_patching_execution_plan | type_debug }}'.
+      {% else %}
+        FAIL: The 'sap_patching_execution_plan' variable cannot be an empty list.
+      {% endif %}
 
-- name: Assert that *to_apply variables are valid
+- name: SAP Patching - Validation - Assert that the variables with suffix 'to_apply' are defined as non-empty strings
   ansible.builtin.assert:
     that:
-      - lookup('ansible.builtin.vars', item, default='SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED') != 'SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED'
-      - lookup('ansible.builtin.vars', item) is string
-      - lookup('ansible.builtin.vars', item) | trim | length > 0
+      - lookup('ansible.builtin.vars', var_item, default='SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED') != 'SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED'
+      - lookup('ansible.builtin.vars', var_item) is string
+      - lookup('ansible.builtin.vars', var_item) | trim | length > 0
     fail_msg: |
-      {% if lookup('ansible.builtin.vars', item, default='SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED') == 'SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED' %}
-        The variable '{{ item }}' is undefined.
-      {% elif lookup('ansible.builtin.vars', item) is not string %}
-        The variable '{{ item }}' is not a String.
+      {% if lookup('ansible.builtin.vars', var_item, default='SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED') == 'SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED' %}
+        FAIL: The variable '{{ var_item }}' is undefined.
+      {% elif lookup('ansible.builtin.vars', var_item) is not string %}
+        FAIL: The variable '{{ var_item }}' is not a String.
       {% else %}
-        The variable '{{ item }}' is empty.
+        FAIL: The variable '{{ var_item }}' is empty.
       {% endif %}
         It should be the name of the symbolic link pointing to the kernel folder to be used by the patching process.
+    quiet: true
   loop:
     - sap_patching_kernel_to_apply_symlink
     - sap_patching_hdb_client_to_apply_symlink
     - sap_patching_hdb_server_to_apply_symlink
     - sap_patching_host_agent_to_apply_symlink
     - sap_patching_webdisp_to_apply_symlink
+  loop_control:
+    loop_var: var_item
+
+
+# Task dependent variables are validated in their respective validation files (e.g. hdb_server.yml, hdb_client.yml, host_agent.yml)
+- name: SAP Patching - Validation - Execute validation specific to each step in the execution plan
+  ansible.builtin.include_tasks:
+    file: plan_step.yml
+  loop: "{{ sap_patching_execution_plan }}"
+  loop_control:
+    label: "Validating step: {{ __sap_patching_step }}"
+    loop_var: __sap_patching_step
