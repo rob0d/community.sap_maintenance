@@ -40,26 +40,18 @@
     - name: SAP Patching - Kernel - Prepare - Assert that no duplicate SAR files are found in source directory
       ansible.builtin.assert:
         that:
-          - __duplicate_files == ''
-        success_msg: |
-          PASS: Unique kernel SAR files found in source directory: {{ __all_files | join(', ') }}.
+          - __all_files | length == __all_files | unique | length
         fail_msg: |
-          FAIL: Duplicate kernel SAR files found in source directory: {{ __duplicate_files }}
+          FAIL: Duplicates SAR file prefixes were detected!
+          File prefixes ({{ __all_files | length }}): {{ __all_files | join(', ') }}
+          Unique prefixes ({{ __all_files | unique | length }}): {{ __all_files | unique | join(', ') }}
       vars:
-        # Get list of all file name prefixes.
         __all_files: >-
           {{ __sap_patching_register_kernel_source_dir_content.files
             | map(attribute='path')
             | map('basename')
             | map('regex_replace', '^(.+?)_.*$', '\1')
             | list }}
-
-        # Get list of unique file name prefixes.
-        __duplicate_files: >-
-          {{ __all_files | intersect(__all_files | unique)
-            | select('in', __all_files| reject('in', __all_files | unique) | list)
-            | unique
-            | join(', ') }}
 
 
     - name: SAP Patching - Kernel - Prepare - Check availability of SAPCAR executable
@@ -371,6 +363,7 @@
       ansible.builtin.file:
         path: "{{ __sap_patching_fact_kernel_extract_target }}"
         state: absent
+      when: __sap_patching_fact_kernel_extract_target is defined
 
     - name: SAP Patching - Kernel - Prepare - Preparation tasks have failed
       ansible.builtin.fail:

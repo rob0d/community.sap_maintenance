@@ -19,17 +19,23 @@
     # Handle sapuxuserchk manually just before patching as sapcpe can't deal with files owned by root and s-uid set
     # This will ignore HANA's sapuxuserchk as it's stored in /hana/shared and find doesn't follow /usr/sap/SID symlinks (intended behaviour)
     #    find /usr/sap/{{ __sap_patching_fact_sap_system_sid }} -name "sapuxuserchk" -exec chown {{ __sap_patching_fact_sidadm_user }}:sapsys {} \;
-    - name: SAP Patching - Kernel - Restart - Update sapuxuserchk manually
-      ansible.builtin.shell:
-        cmd: >-
-          find /usr/sap/{{ __sap_patching_fact_sap_system_sid }}
-          -name "sapuxuserchk"
-          -exec cp /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/run/sapuxuserchk {} \;
-          -false -o -exec chown root:sapsys {} \;
-          -false -o -exec chmod 4755 {} \;
-      register: __sap_patching_register_sapuxuserchk_chown
-      changed_when: __sap_patching_register_sapuxuserchk_chown.rc == 0
-      failed_when: __sap_patching_register_sapuxuserchk_chown.rc != 0
+    - name: SAP Patching - Kernel - Restart - Find all existing sapuxuserchk binaries
+      ansible.builtin.find:
+        paths: "/usr/sap/{{ __sap_patching_fact_sap_system_sid }}"
+        patterns: "sapuxuserchk"
+        recurse: yes
+        follow: no
+      register: __sap_patching_register_sapuxuserchk_found
+
+    - name: SAP Patching - Kernel - Restart - Update permissions on found sapuxuserchk files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        owner: root
+        group: sapsys
+        mode: '4755'
+        state: file
+      loop: "{{ __sap_patching_register_sapuxuserchk_found.files }}"
+      when: __sap_patching_register_sapuxuserchk_found.matched > 0
 
 
     # Restart ABAP system using Rolling Kernel Switch (RKS) - on one host only
@@ -125,10 +131,11 @@
         - name: SAP Patching - Kernel - Restart - Stop ABAP system
           ansible.builtin.include_tasks:
             file: "{{ role_path }}/tasks/startstop/abap_stop.yml"
+          # Stop must happen to avoid 'FAIL: Instance still running' during Bootstrap.
           # when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
 
         # Now restart the sapstartsrv for each instance found
-        - name: Bootstrap each instance in __sap_patching_fact_instance_list
+        - name: SAP Patching - Kernel - Restart - Bootstrap each detected running instance
           ansible.builtin.shell:
             cmd: >-
               source ~/.profile &&
