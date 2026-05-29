@@ -9,18 +9,13 @@
 #   changed_when: false
 #   failed_when: __sap_patching_register_sap_instances.rc != 0
 
-- name: SAP Patching - Detect Instances - Get sidadm user information using getent
-  ansible.builtin.getent:
-    database: passwd
-    key: "{{ __sap_patching_fact_sidadm_user }}"
-  failed_when: false
-
 
 # RD: Consider using lssap instead? That will show all, not just running sapstartsrv instances
 # /usr/sap/hostctrl/exe/lssap | grep {{ __sap_patching_fact_sap_system_sid }} | awk -F '|' '{print $2}'
-# Also we are ignoring SUM and HDB sapstartsrv processes
-# Also not using pipefail as we have grep which can return 1 if no lines are found which we want to ignore but we still want to catch errors from ps command itself
-- name: SAP Patching - Detect Instances - Get all running instances of sapstartsrv on the current host based on the running sapstartsrv processes
+# Also we are ignoring SUM and HDB sapstartsrv processes.
+# Also not using pipefail as we have grep which can return 1 if no lines are found
+# which we want to ignore but we still want to catch errors from ps command itself.
+- name: SAP Patching - Detect Instances - Get all running instances of sapstartsrv on the current host
   ansible.builtin.shell:
     cmd: >
       set -o pipefail &&

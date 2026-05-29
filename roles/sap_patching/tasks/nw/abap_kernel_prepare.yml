@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-- name: SAP Patching - Kernel - Prepare - Check write permission on kernel base directory
+- name: SAP Patching - Kernel - Prepare - Stat kernel base directory with user {{ sap_patching_file_owner }}
   ansible.builtin.stat:
     path: "{{ __sap_patching_kernel_base }}"
   register: __sap_patching_register_kernel_base_stat
@@ -15,10 +15,12 @@
       - __sap_patching_register_kernel_base_stat.stat.writeable
     fail_msg: |
       FAIL: User '{{ sap_patching_file_owner }}' does not have write permissions
-      to the directory '{{ __sap_patching_kernel_base }}'.
+      to the directory '{{ sap_patching_kernel_base }}'
+      defined in the variable 'sap_patching_kernel_base'.
 
       Ansible cannot create the symlink '{{ sap_patching_kernel_to_apply_symlink }}'
-      without write access to this path. Please check the directory permissions (chmod/chown).
+      without write access to this path.
+      Please check the directory permissions (chmod/chown).
 
 
 # Search for kernel SAR files and extract support package number
@@ -53,12 +55,6 @@
             | map('regex_replace', '^(.+?)_.*$', '\1')
             | list }}
 
-
-    - name: SAP Patching - Kernel - Prepare - Check availability of SAPCAR executable
-      ansible.builtin.stat:
-        path: "{{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
-      register: __sap_patching_register_sapcar_file_name_stat
-      failed_when: not __sap_patching_register_sapcar_file_name_stat.stat.exists
 
     - name: SAP Patching - Kernel - Prepare - Find SAPEXE* or dw* SAR files
       ansible.builtin.find:
@@ -282,10 +278,12 @@
       ansible.builtin.set_fact:
         __sap_patching_fact_kernel_release_dw:
           "{{ __sap_patching_register_disp_work_output.stdout | regex_search('kernel release\\s+(\\d+)', '\\1') | first | d('0') }}"
-          # "{{ __sap_patching_register_disp_work_output.stdout_lines | select('search', '^kernel release') | list | first | regex_search('kernel release\\s+(\\d+)', '\\1') | first }}"
+          # "{{ __sap_patching_register_disp_work_output.stdout_lines | select('search', '^kernel release')
+          #   | list | first | regex_search('kernel release\\s+(\\d+)', '\\1') | first }}"
         __sap_patching_fact_kernel_patch_dw:
           "{{ __sap_patching_register_disp_work_output.stdout | regex_search('patch number\\s+(\\d+)', '\\1') | first | d('0') }}"
-          # "{{ __sap_patching_register_disp_work_output.stdout_lines | select('search', '^patch number') | list | first | regex_search('patch number\\s+(\\d+)', '\\1') | first }}"
+          # "{{ __sap_patching_register_disp_work_output.stdout_lines | select('search', '^patch number')
+          #   | list | first | regex_search('patch number\\s+(\\d+)', '\\1') | first }}"
 
     - name: SAP Patching - Kernel - Prepare - Assert that expected kernel patch number matches extracted SAR patch number
       ansible.builtin.assert:
@@ -321,7 +319,8 @@
         - name: SAP Patching - Kernel - Prepare - Update target kernel SP directory variable
           ansible.builtin.set_fact:
             __sap_patching_fact_kernel_extract_target:
-              "{{ __sap_patching_kernel_base }}/k{{ __sap_patching_fact_kernel_release_dw }}p{{ __sap_patching_fact_kernel_pn }}{{ __sap_patching_kernel_fact_delta_suffix | d('') }}"
+              "{{ __sap_patching_kernel_base }}/k{{ __sap_patching_fact_kernel_release_dw }}p{{
+                __sap_patching_fact_kernel_pn }}{{ __sap_patching_kernel_fact_delta_suffix | d('') }}"
 
 
     - name: SAP Patching - Kernel - Prepare - Assert kernel release matches user defined version in 'sap_patching_kernel_prepare_version'

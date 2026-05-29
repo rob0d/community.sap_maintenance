@@ -11,6 +11,7 @@
       The variable 'sap_patching_sap_system_sid' is undefined, not upper case, not 3 characters long or invalid.
       It should be a either empty string (if not required in the execution plan) or a valid SAP system SID (3 characters).
 
+
 - name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_base' is defined and valid
   ansible.builtin.assert:
     that:
@@ -22,15 +23,33 @@
       The variable 'sap_patching_kernel_base' is undefined, empty, or invalid.
       It should be an absolute path (starting with /) where kernel SP directories are created.
 
-- name: SAP Patching - Validation - Kernel - Assert that the variable '__sap_patching_kernel_source' is defined and valid
+- name: SAP Patching - Validation - Kernel - Check if path in the variable 'sap_patching_kernel_base' exists and is a directory
+  ansible.builtin.stat:
+    path: "{{ sap_patching_kernel_base }}"
+  register: __sap_patching_register_kernel_base_stat
+  failed_when:
+    - not (__sap_patching_register_kernel_base_stat.stat.exists
+        and __sap_patching_register_kernel_base_stat.stat.isdir)
+
+
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_source' is defined and valid
   ansible.builtin.assert:
     that:
-      - __sap_patching_kernel_source is defined
-      - __sap_patching_kernel_source is string
-      - __sap_patching_kernel_source | length > 0
+      - sap_patching_kernel_source is defined
+      - sap_patching_kernel_source is string
+      - sap_patching_kernel_source | length > 0
     fail_msg: |
-      The variable '__sap_patching_kernel_source' is undefined, empty, or invalid.
+      The variable 'sap_patching_kernel_source' is undefined, empty, or invalid.
       It should be a path where the kernel SAR files are located.
+
+- name: SAP Patching - Validation - Kernel - Check if path in the variable 'sap_patching_kernel_source' exists and is a directory
+  ansible.builtin.stat:
+    path: "{{ sap_patching_kernel_source }}"
+  register: __sap_patching_register_kernel_source_stat
+  failed_when:
+    - not (__sap_patching_register_kernel_source_stat.stat.exists
+        and __sap_patching_register_kernel_source_stat.stat.isdir)
+
 
 - name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_prepare_version' is defined and valid
   ansible.builtin.assert:
@@ -81,15 +100,24 @@
       The variable 'sap_patching_kernel_restart_strategy' is undefined or invalid.
       It should be one of: 'all' (restart whole system), 'rks' (Rolling Kernel Switch), or 'bootstrap' (restart only sapstartsrv).
 
-- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_rks_wait_timeout' is defined and valid
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_rks_wait_timeout' is defined and valid
   ansible.builtin.assert:
     that:
-      - sap_patching_rks_wait_timeout is defined
-      - sap_patching_rks_wait_timeout is number
-      - sap_patching_rks_wait_timeout > 0
+      - sap_patching_kernel_rks_wait_timeout is defined
+      - sap_patching_kernel_rks_wait_timeout is number
+      - sap_patching_kernel_rks_wait_timeout > 0
     fail_msg: |
-      The variable 'sap_patching_rks_wait_timeout' is undefined or invalid.
+      The variable 'sap_patching_kernel_rks_wait_timeout' is undefined or invalid.
       It should be a positive integer (in seconds) greater than 0, typically more than rdisp/server_startup/max_time (default: 600).
+
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_rks_soft_timeout' is defined and valid
+  ansible.builtin.assert:
+    that:
+      - sap_patching_kernel_rks_soft_timeout is defined
+      - sap_patching_kernel_rks_soft_timeout is integer
+    fail_msg: |
+      The variable 'sap_patching_kernel_rks_soft_timeout' is undefined or invalid.
+      It should be an integer (in seconds) indicating the soft timeout for the Rolling Kernel Switch.
 
 - name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_restart_strategy' is defined and valid
   ansible.builtin.assert:

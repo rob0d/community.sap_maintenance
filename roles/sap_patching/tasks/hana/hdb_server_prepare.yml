@@ -26,19 +26,15 @@
             | last
           }}
 
-    - name: Check availability of SAPCAR - {{ sap_patching_sapcar_path + '/' + sap_patching_sapcar_file_name }}
-      ansible.builtin.stat:
-        path: "{{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
-      register: __sap_patching_register_sapcar_file_name_stat
-      failed_when: not __sap_patching_register_sapcar_file_name_stat.stat.exists
-
     - name: Extract the server version from SAR file
       ansible.builtin.set_fact:
-        __sap_patching_fact_hdb_server_version: "{{ __sap_patching_fact_hdb_server_sar | regex_search('(?i)IMDB_SERVER([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
+        __sap_patching_fact_hdb_server_version:
+          "{{ __sap_patching_fact_hdb_server_sar | regex_search('(?i)IMDB_SERVER([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
 
     - name: Set the target HDB server directory variable
       ansible.builtin.set_fact:
-        __sap_patching_fact_hdb_server_extract_target: "{{ sap_patching_hdb_server_base }}/{{ __sap_patching_hdb_server_extracted }}_{{ __sap_patching_fact_hdb_server_version }}"
+        __sap_patching_fact_hdb_server_extract_target:
+          "{{ sap_patching_hdb_server_base }}/{{ __sap_patching_hdb_server_extracted }}_{{ __sap_patching_fact_hdb_server_version }}"
 
     - name: Create extraction target HDB server directory
       ansible.builtin.file:
@@ -76,7 +72,7 @@
 
     - name: Extract HDB server SAR file to the target
       ansible.builtin.command: >-
-        {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+        {{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
         -xvf {{ sap_patching_hdb_server_base }}/{{ __sap_patching_fact_hdb_server_sar }}
         -R "{{ __sap_patching_fact_hdb_server_extract_target }}"
         -manifest SIGNATURE.SMF

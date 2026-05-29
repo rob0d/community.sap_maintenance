@@ -93,6 +93,7 @@
       ansible.builtin.copy:
         src: "{{ __sap_patching_fact_kernel_to_apply }}/"
         dest: "{{ __sap_patching_fact_kernel_global_exe }}"
+        # TODO: Review concept behind what means shared.
         remote_src: "{{ __sap_patching_fact_kernel_extracted_shared | bool }}"
         owner: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
         group: sapsys

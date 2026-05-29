@@ -21,12 +21,12 @@
     - name: Set hdblcm action parameter based on update_mode
       ansible.builtin.set_fact:
         __sap_patching_fact_hdb_server_hdblcm_action: >-
-          {% if sap_patching_params.update_mode == 'prepare' %}
+          {% if __sap_patching_params.update_mode == 'prepare' %}
           --action=update --prepare_update
           {% else %}
           --action=update
           {% endif %}
-    # {% elif sap_patching_params.update_mode == 'resume' %}
+    # {% elif __sap_patching_params.update_mode == 'resume' %}
     # --action=update --resume_update
 
     # If clustered and not in prepare mode then put cluster in maintenance mode
@@ -39,7 +39,7 @@
         file: "{{ ansible_facts['os_family'] }}/cluster_maintenance.yml"
       when:
         - sap_patching_hdb_server_is_clustered | bool
-        - sap_patching_params.update_mode != 'prepare'
+        - __sap_patching_params.update_mode != 'prepare'
 
     - name: Include hdblcm config file template
       ansible.builtin.include_tasks: hdblcm_configfile.yml
@@ -65,7 +65,7 @@
     - name: Block to refresh HSR information
       run_once: true
       when:
-        - sap_patching_params.update_mode != 'prepare'
+        - __sap_patching_params.update_mode != 'prepare'
         - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout"
       block:
         - name: "SAP HSR - Check System Replication Status - again"
@@ -215,7 +215,7 @@
         file: "{{ ansible_facts['os_family'] }}/cluster_maintenance.yml"
       when:
         - sap_patching_hdb_server_is_clustered | bool
-        - sap_patching_params.update_mode != 'prepare'
+        - __sap_patching_params.update_mode != 'prepare'
 
     # TODO: Ideally we check that the resource is fully running before trying to relocate it, but issue is with
     # doing it reliably across RHEL/SLES and when cluster hasn't been created using SAP LL roles.
@@ -226,7 +226,7 @@
         timeout: 60
       when:
         - sap_patching_hdb_server_is_clustered | bool
-        - sap_patching_params.update_mode != 'prepare'
+        - __sap_patching_params.update_mode != 'prepare'
 
     # if cluster is on, initiate switchover after patching
     # check that it hasn't been done already
@@ -236,7 +236,7 @@
         file: "{{ ansible_facts['os_family'] }}/cluster_hdb_relocate.yml"
       when:
         - sap_patching_hdb_server_is_clustered | bool
-        - sap_patching_params.update_mode != 'prepare'
+        - __sap_patching_params.update_mode != 'prepare'
         - not __sap_patching_fact_hdb_cluster_relocated | d(false, true) | bool
 
     # We use run_once "trick" here to set this variable on all hosts in the play.
@@ -247,5 +247,5 @@
         __sap_patching_fact_hdb_cluster_relocated: true
       when:
         - sap_patching_hdb_server_is_clustered | bool
-        - sap_patching_params.update_mode != 'prepare'
+        - __sap_patching_params.update_mode != 'prepare'
         - not __sap_patching_fact_hdb_cluster_relocated | d(false, true) | bool

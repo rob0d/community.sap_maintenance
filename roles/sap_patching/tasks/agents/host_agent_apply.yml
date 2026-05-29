@@ -70,7 +70,7 @@
 # Execution
 - name: Apply host agent updates - auto update mode
   run_once: true
-  when: sap_patching_params.update_mode == 'auto'
+  when: __sap_patching_params.update_mode == 'auto'
   block:
     - name: Check that {{ sap_patching_host_agent_autoupdate_path }}/.upgrading does not exist
       ansible.builtin.stat:
@@ -117,7 +117,7 @@
       changed_when: true
 
 - name: Apply host agent updates - manual update mode
-  when: sap_patching_params.update_mode == 'manual'
+  when: __sap_patching_params.update_mode == 'manual'
   block:
     - name: Execute saphostexec -upgrade as root
       ansible.builtin.command:

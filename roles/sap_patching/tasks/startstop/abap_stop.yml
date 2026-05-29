@@ -6,7 +6,7 @@
     __sap_patching_fact_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
   when:
     - __sap_patching_fact_sap_system_sid | d('',true) | length == 0
-      or sap_patching_params.task_execution_mode | d('',true) == 'direct'
+      or __sap_patching_params.task_execution_mode | d('',true) == 'direct'
 
 
 - name: SAP Patching - Stop ABAP - Get a list of sapstartsrv instances
@@ -57,7 +57,8 @@
     # # Grabbing the first instance number from the list as any instance can see all others
     # - name: Wait until all instances are not GREEN
     #   ansible.builtin.shell: |
-    #     source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }} -format script -function GetSystemInstanceList |  grep 'dispstatus:\|FAIL'
+    #     source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }}
+    #     -format script -function GetSystemInstanceList |  grep 'dispstatus:\|FAIL'
     #   args:
     #     executable: /bin/bash
     #   become: true

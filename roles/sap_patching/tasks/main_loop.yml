@@ -14,6 +14,6 @@
     file: "{{ __sap_patching_exec_def[__sap_patching_step].file }}"
   run_once: "{{ __sap_patching_exec_def[__sap_patching_step].run_once | d(false) }}"
   vars:
-    sap_patching_params: "{{ __sap_patching_exec_def[__sap_patching_step].vars | d({}) }}"
+    __sap_patching_params: "{{ __sap_patching_exec_def[__sap_patching_step].vars | d({}) }}"
   tags:
     - always

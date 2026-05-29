@@ -1,4 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
+
 # Search for host agent SAR files and extract support package number
 - name: Check if host agent source directory contains .sar files (case-insensitive)
   ansible.builtin.find:
@@ -25,12 +27,6 @@
             | list
             | last
           }}
-
-    - name: Check availability of SAPCAR - {{ sap_patching_sapcar_path + '/' + sap_patching_sapcar_file_name }}
-      ansible.builtin.stat:
-        path: "{{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
-      register: __sap_patching_register_sapcar_file_name_stat
-      failed_when: not __sap_patching_register_sapcar_file_name_stat.stat.exists
 
     - name: Extract the host agent version from SAR file
       ansible.builtin.set_fact:
@@ -76,7 +72,7 @@
 
     - name: Extract host agent SAR file to the target
       ansible.builtin.command: >-
-        {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+        {{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
         -xvf {{ sap_patching_host_agent_base }}/{{ __sap_patching_fact_host_agent_sar }}
         -R "{{ __sap_patching_fact_host_agent_extract_target }}"
         -manifest SIGNATURE.SMF

@@ -30,12 +30,6 @@
             | last
           }}
 
-    - name: SAP Patching - Web Dispatcher - Prepare - Check availability of SAPCAR executable
-      ansible.builtin.stat:
-        path: "{{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
-      register: __sap_patching_register_sapcar_file_name_stat
-      failed_when: not __sap_patching_register_sapcar_file_name_stat.stat.exists
-
 
     # Default 'TMP' is used only for folder creation.
     - name: SAP Patching - Web Dispatcher - Prepare - Extract the web dispatcher version from SAR file name

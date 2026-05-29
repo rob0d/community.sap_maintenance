@@ -27,12 +27,6 @@
             | last
           }}
 
-    - name: Check availability of SAPCAR - {{ sap_patching_sapcar_path + '/' + sap_patching_sapcar_file_name }}
-      ansible.builtin.stat:
-        path: "{{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
-      register: __sap_patching_register_sapcar_file_name_stat
-      failed_when: not __sap_patching_register_sapcar_file_name_stat.stat.exists
-
     - name: Extract the client version from SAR file
       ansible.builtin.set_fact:
         sap_patching_hdb_client_version: "{{ __sap_patching_fact_hdb_client_sar | regex_search('(?i)IMDB_CLIENT([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
@@ -77,7 +71,7 @@
 
     - name: Extract HDB client SAR file to the target
       ansible.builtin.command: >-
-        {{ sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+        {{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
         -xvf {{ sap_patching_hdb_client_base }}/{{ __sap_patching_fact_hdb_client_sar }}
         -R "{{ sap_patching_hdb_client_extract_target }}"
         -manifest SIGNATURE.SMF

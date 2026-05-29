@@ -23,8 +23,8 @@
       ansible.builtin.find:
         paths: "/usr/sap/{{ __sap_patching_fact_sap_system_sid }}"
         patterns: "sapuxuserchk"
-        recurse: yes
-        follow: no
+        recurse: true
+        follow: false
       register: __sap_patching_register_sapuxuserchk_found
 
     - name: SAP Patching - Kernel - Restart - Update permissions on found sapuxuserchk files
@@ -105,7 +105,9 @@
               source ~/.profile &&
               sapcontrol
               -nr {{ __sap_patching_fact_instance_list[0][1] }}
-              -function UpdateSystem {{ sap_patching_rks_wait_timeout }}
+              -function UpdateSystem {{ sap_patching_kernel_rks_wait_timeout }}
+              {{ sap_patching_kernel_rks_soft_timeout | d(3600) }}
+              {{ 1 if sap_patching_kernel_rks_force | d(false) else '' }}
           args:
             executable: /bin/bash
           become: true
@@ -116,11 +118,6 @@
 
         # TODO: Add orchestrated saproot execution after all instances are done if possible.
         # {{ __sap_patching_fact_kernel_or_webdisp }}_saproot.yml
-        - name: SAP Patching - Kernel - Restart - Inform that saproot must be executed after all instances have been restarted
-          ansible.builtin.debug:
-            msg: |
-              INFO: Rolling Kernel Switch (RKS) update was completed successfully.
-              Please note that saproot.sh must be executed manually after all instances have been restarted to adjust permissions and complete the patching process.
 
 
     # Restart/Bootstrap ABAP system and execute saproot.sh
@@ -167,3 +164,19 @@
           ansible.builtin.include_tasks:
             file: "{{ role_path }}/tasks/startstop/abap_start.yml"
           when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
+
+
+    - name: SAP Patching - Kernel - Restart - Show summary of restart execution
+      ansible.builtin.debug:
+        msg: |
+          {% if __sap_patching_fact_kernel_restart_strategy == 'rks' %}
+            INFO: Rolling Kernel Switch (RKS) was initiated in background.
+            This role will not wait for its completion as it can take a long time depending on the system load and timeout settings.
+            You can monitor update process with command: 'sapcontrol -nr NR -function GetSystemUpdateList'.
+
+            Next steps:
+            - Manually execute 'saproot.sh' after all instances have been restarted,
+              to ensure that permissions are adjusted after patching has completed.
+          {% else %}
+            INFO: SAP System was restarted to apply new kernel and 'saproot.sh' was executed to adjust permissions after patching.
+          {% endif %}

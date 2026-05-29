@@ -11,6 +11,7 @@
       The variable 'sap_patching_wdp_system_sid' is undefined, not upper case, not 3 characters long or invalid.
       It should be a either empty string (if not required in the execution plan) or a valid SAP system SID (3 characters).
 
+
 - name: SAP Patching - Validation - Web Dispatcher - Assert that the variable 'sap_patching_webdisp_base' is defined and valid
   ansible.builtin.assert:
     that:
@@ -22,6 +23,15 @@
       The variable 'sap_patching_webdisp_base' is undefined, empty, or invalid.
       It should be an absolute path (starting with /) where web dispatcher SAR files are stored and extraction directories are created.
 
+- name: SAP Patching - Validation - Web Dispatcher - Check if path in the variable 'sap_patching_webdisp_base' exists and is a directory
+  ansible.builtin.stat:
+    path: "{{ sap_patching_webdisp_base }}"
+  register: __sap_patching_register_webdisp_base_stat
+  failed_when:
+    - not (__sap_patching_register_webdisp_base_stat.stat.exists
+        and __sap_patching_register_webdisp_base_stat.stat.isdir)
+
+
 - name: SAP Patching - Validation - Web Dispatcher - Assert that the variable 'sap_patching_webdisp_source' is defined and valid
   ansible.builtin.assert:
     that:
@@ -31,6 +41,15 @@
     fail_msg: |
       The variable 'sap_patching_webdisp_source' is undefined, empty, or invalid.
       It should be a path where the web dispatcher SAR files are located (used during the prepare step).
+
+- name: SAP Patching - Validation - Web Dispatcher - Check if path in the variable 'sap_patching_webdisp_source' exists and is a directory
+  ansible.builtin.stat:
+    path: "{{ sap_patching_webdisp_source }}"
+  register: __sap_patching_register_webdisp_source_stat
+  failed_when:
+    - not (__sap_patching_register_webdisp_source_stat.stat.exists
+        and __sap_patching_register_webdisp_source_stat.stat.isdir)
+
 
 - name: SAP Patching - Validation - Web Dispatcher - Assert that the variable 'sap_patching_webdisp_extracted_shared' is defined and valid
   ansible.builtin.assert:

@@ -43,6 +43,18 @@
     loop_var: var_item
 
 
+# Gather list of available users and groups to validate when those variables are defined.
+- name: SAP Patching - Validation - Get details about available users
+  ansible.builtin.getent:
+    database: passwd
+  failed_when: false
+
+- name: SAP Patching - Validation - Get details about available groups
+  ansible.builtin.getent:
+    database: group
+  failed_when: false
+
+
 # Task dependent variables are validated in their respective validation files (e.g. hdb_server.yml, hdb_client.yml, host_agent.yml)
 - name: SAP Patching - Validation - Execute validation specific to each step in the execution plan
   ansible.builtin.include_tasks:

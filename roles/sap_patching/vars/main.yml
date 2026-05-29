@@ -8,17 +8,19 @@
 
 # The 'where' condition must evaluate to a boolean true/false in YAML format. - NOT USED anymore. To be removed at the end of 2027.
 # tags - not used, replaced by execution plan. To be removed at the end of 2027.
-# vars - set as sap_patching_params dictionary containing all variables for the task file
+# vars - set as __sap_patching_params dictionary containing all variables for the task file
 __sap_patching_exec_def:
   # ABAP kernel
   abap_kernel_prepare:
     file: nw/abap_kernel_prepare.yml
     validators:
-      - abap
       - prepare
+      - abap
+      - kernel
     where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
     vars:
-    run_once: true
+    # If shared is used, assumption is that extracted files will be available across hosts.
+    run_once: "{{ sap_patching_kernel_extracted_shared | d(true) }}"
   abap_kernel_apply:
     file: nw/abap_kernel_apply.yml
     validators:

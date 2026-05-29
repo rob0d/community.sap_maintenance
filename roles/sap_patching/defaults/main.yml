@@ -7,6 +7,7 @@ sap_patching_execution_plan: []
 
 #### SAP system definitions ####
 # SAP System SID
+# NOTE: In case of using database with different SID, use 'sap_patching_hdb_system_sid' to define HANA SID.
 sap_patching_sap_system_sid: ''
 
 # SAPCAR information
@@ -181,8 +182,12 @@ sap_patching_webdisp_extracted_shared: true
 # Unless you know what you are doing ...               #
 ########################################################
 
-# RKS wait timeout in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
-sap_patching_rks_wait_timeout: 900
+# RKS timeout parameters in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
+sap_patching_kernel_rks_wait_timeout: 900
+sap_patching_kernel_rks_soft_timeout: 3600
+# Optional override for UpdateSystem function, that must be used with caution,
+# because it can ignore RKS requirements.
+sap_patching_kernel_rks_force: false
 
 # Name of symbolic link to point to the folder to be used by the patching process
 sap_patching_kernel_to_apply_symlink: ansible_to_apply
