@@ -8,137 +8,165 @@
 # RKS with HA - https://me.sap.com/notes/2077934
 
 
-- name: SAP Patching - Kernel - Restart - Get a list of sapstartsrv instances
-  ansible.builtin.include_tasks:
-    file: "{{ role_path }}/tasks/startstop/sapstartsrv_instances.yml"
+# Handle sapuxuserchk manually just before patching as sapcpe can't deal with files owned by root and s-uid set
+# This will ignore HANA's sapuxuserchk as it's stored in /hana/shared and find doesn't follow /usr/sap/SID symlinks (intended behaviour)
+#    find /usr/sap/{{ __sap_patching_fact_sap_system_sid }} -name "sapuxuserchk" -exec chown {{ __sap_patching_fact_sidadm_user }}:sapsys {} \;
+- name: SAP Patching - Kernel - Restart - Find all existing sapuxuserchk binaries
+  ansible.builtin.find:
+    paths: "/usr/sap/{{ __sap_patching_fact_sap_system_sid }}"
+    patterns: "sapuxuserchk"
+    recurse: true
+    follow: false
+  register: __sap_patching_register_sapuxuserchk_found
 
-- name: Block to proceed only if at least one instance is found
-  when: __sap_patching_fact_instance_list | d([]) | length > 0
+- name: SAP Patching - Kernel - Restart - Update permissions on found sapuxuserchk files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: sapsys
+    mode: '4755'
+    state: file
+  loop: "{{ __sap_patching_register_sapuxuserchk_found.files }}"
+  when: __sap_patching_register_sapuxuserchk_found.matched > 0
+
+
+# Restart ABAP system using Rolling Kernel Switch (RKS) - on one host only
+- name: Block for rolling kernel switch strategy
+  run_once: true
+  when: __sap_patching_fact_kernel_restart_strategy == 'rks'
   block:
 
-    # Handle sapuxuserchk manually just before patching as sapcpe can't deal with files owned by root and s-uid set
-    # This will ignore HANA's sapuxuserchk as it's stored in /hana/shared and find doesn't follow /usr/sap/SID symlinks (intended behaviour)
-    #    find /usr/sap/{{ __sap_patching_fact_sap_system_sid }} -name "sapuxuserchk" -exec chown {{ __sap_patching_fact_sidadm_user }}:sapsys {} \;
-    - name: SAP Patching - Kernel - Restart - Find all existing sapuxuserchk binaries
-      ansible.builtin.find:
-        paths: "/usr/sap/{{ __sap_patching_fact_sap_system_sid }}"
-        patterns: "sapuxuserchk"
-        recurse: true
-        follow: false
-      register: __sap_patching_register_sapuxuserchk_found
+    # Reason for noqa: Shell retains the environment variables.
+    - name: SAP Patching - Kernel - Restart - Check the RKS compatibility of the new kernel using disp+work  # noqa command-instead-of-shell
+      ansible.builtin.shell:
+        cmd: /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/run/disp+work
+      environment:
+        LD_LIBRARY_PATH: "/usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/run/"
+      register: __sap_patching_register_kernel_new_output
+      changed_when: false
 
-    - name: SAP Patching - Kernel - Restart - Update permissions on found sapuxuserchk files
-      ansible.builtin.file:
-        path: "{{ item.path }}"
-        owner: root
-        group: sapsys
-        mode: '4755'
-        state: file
-      loop: "{{ __sap_patching_register_sapuxuserchk_found.files }}"
-      when: __sap_patching_register_sapuxuserchk_found.matched > 0
+    - name: SAP Patching - Kernel - Restart - Fail if 'disp+work' command failed for new kernel
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'disp+work' has failed for new kernel.
+          Output: {{ __sap_patching_register_kernel_new_output.stdout | d('') }}
+          Error: {{ __sap_patching_register_kernel_new_output.stderr | d('') }}
+      when: __sap_patching_register_kernel_new_output.rc != 0
+
+    - name: SAP Patching - Kernel - Restart - Set fact with extracted RKS compatibility level from disp+work output
+      ansible.builtin.set_fact:
+        __sap_patching_fact_kernel_new_rks_level:
+          "{{ __sap_patching_register_kernel_new_output.stdout_lines
+            | regex_search('RKS compatibility level\\s+(\\d+)', '\\1') | first }}"
 
 
-    # Restart ABAP system using Rolling Kernel Switch (RKS) - on one host only
-    - name: Block for rolling kernel switch strategy
-      run_once: true
-      when: __sap_patching_fact_kernel_restart_strategy == 'rks'
+    # Grep for 'disp+work' is removed because we have to support also ASCS, SCS, ERS and others.
+    - name: SAP Patching - Kernel - Restart - Check the RKS compatibility of the current kernel using sapcontrol
+      ansible.builtin.shell:
+        cmd: >-
+          source ~/.profile &&
+          sapcontrol
+          -nr {{ __sap_patching_fact_instance_list[0][1] }}
+          -function GetVersionInfo
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: "{{ __sap_patching_fact_sidadm_user }}"
+      register: __sap_patching_register_kernel_current_output
+      changed_when: false
+
+    - name: SAP Patching - Kernel - Restart - Fail if 'sapcontrol' with function 'GetVersionInfo' has failed for current kernel
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'sapcontrol' with function 'GetVersionInfo' has failed for current kernel.
+          Command: sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }} -function GetVersionInfo
+          Output: {{ __sap_patching_register_kernel_current_output.stdout | d('') }}
+          Error: {{ __sap_patching_register_kernel_current_output.stderr | d('') }}
+      when:
+        - __sap_patching_register_kernel_current_output.rc != 0
+          or 'FAIL' in __sap_patching_register_kernel_current_output.stdout
+
+    - name: SAP Patching - Kernel - Restart - Set fact with extracted RKS compatibility level from sapcontrol output
+      ansible.builtin.set_fact:
+        __sap_patching_fact_kernel_current_rks_level: >-
+          {{ __sap_patching_register_kernel_current_output.stdout
+            | regex_search('RKS compatibility level\s+(\d+)', '\1')
+            | first
+            | d('0') }}
+
+
+    - name: SAP Patching - Kernel - Restart - Fail if RKS compatibility levels do not match
+      ansible.builtin.fail:
+        msg: |
+          FAIL: RKS compatibility levels do not match between current and new kernel.
+          Current: {{ __sap_patching_fact_kernel_current_rks_level }}
+          New: {{ __sap_patching_fact_kernel_new_rks_level }}
+      when: (__sap_patching_fact_kernel_current_rks_level | int) != (__sap_patching_fact_kernel_new_rks_level | int)
+
+
+    - name: SAP Patching - Kernel - Restart - Include tasks to ensure that ABAP system is started before initiating RKS
+      ansible.builtin.include_tasks:
+        file: "{{ role_path }}/tasks/startstop/abap_start.yml"
+
+    - name: Block to set command for both execution and fail validation
+      vars:
+        __command_update_system: >-
+          source ~/.profile &&
+          sapcontrol
+          -nr {{ __sap_patching_fact_instance_list[0][1] }}
+          -function UpdateSystem {{ sap_patching_kernel_rks_wait_timeout }}
+          {{ sap_patching_kernel_rks_soft_timeout | d(3600) }}
+          {{ 1 if sap_patching_kernel_rks_force | d(false) else '' }}
       block:
-
-        # Reason for noqa: Shell retains the environment variables.
-        - name: SAP Patching - Kernel - Restart - Check the RKS compatibility of the new kernel using disp+work  # noqa command-instead-of-shell
-          ansible.builtin.shell:
-            cmd: /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/run/disp+work
-          environment:
-            LD_LIBRARY_PATH: "/usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/run/"
-          register: __sap_patching_register_kernel_new_output
-          changed_when: false
-          failed_when: __sap_patching_register_kernel_new_output.rc != 0
-
-        - name: SAP Patching - Kernel - Restart - Set fact with extracted RKS compatibility level from disp+work output
-          ansible.builtin.set_fact:
-            __sap_patching_fact_kernel_new_rks_level:
-              "{{ __sap_patching_register_kernel_new_output.stdout_lines
-                | regex_search('RKS compatibility level\\s+(\\d+)', '\\1') | first }}"
-
-
-        # Grep for 'disp+work' is removed because we have to support also ASCS, SCS, ERS and others.
-        - name: SAP Patching - Kernel - Restart - Check the RKS compatibility of the current kernel using sapcontrol
-          ansible.builtin.shell:
-            cmd: >-
-              source ~/.profile &&
-              sapcontrol
-              -nr {{ __sap_patching_fact_instance_list[0][1] }}
-              -function GetVersionInfo
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sidadm_user }}"
-          register: __sap_patching_register_kernel_current_output
-          changed_when: false
-          failed_when: "__sap_patching_register_kernel_current_output.rc != 0 or 'FAIL' in __sap_patching_register_kernel_current_output.stdout"
-
-        - name: SAP Patching - Kernel - Restart - Set fact with extracted RKS compatibility level from sapcontrol output
-          ansible.builtin.set_fact:
-            __sap_patching_fact_kernel_current_rks_level: >-
-              {{ __sap_patching_register_kernel_current_output.stdout
-                | regex_search('RKS compatibility level\s+(\d+)', '\1')
-                | first
-                | d('0') }}
-
-
-        - name: SAP Patching - Kernel - Restart - Assert that RKS compatibility levels match
-          ansible.builtin.assert:
-            that:
-              - (__sap_patching_fact_kernel_current_rks_level | int) == (__sap_patching_fact_kernel_new_rks_level | int)
-            fail_msg: |
-              FAIL: RKS compatibility levels do not match between current and new kernel.
-              Current: {{ __sap_patching_fact_kernel_current_rks_level }}
-              New: {{ __sap_patching_fact_kernel_new_rks_level }}
-
-        - name: SAP Patching - Kernel - Restart - Ensure that ABAP system is started before initiating RKS
-          ansible.builtin.include_tasks:
-            file: "{{ role_path }}/tasks/startstop/abap_start.yml"
-
         - name: SAP Patching - Kernel - Restart - Initiate Rolling Kernel Switch (RKS)
           ansible.builtin.shell:
-            cmd: >-
-              source ~/.profile &&
-              sapcontrol
-              -nr {{ __sap_patching_fact_instance_list[0][1] }}
-              -function UpdateSystem {{ sap_patching_kernel_rks_wait_timeout }}
-              {{ sap_patching_kernel_rks_soft_timeout | d(3600) }}
-              {{ 1 if sap_patching_kernel_rks_force | d(false) else '' }}
+            cmd: "{{ __command_update_system }}"
           args:
             executable: /bin/bash
           become: true
           become_user: "{{ __sap_patching_fact_sidadm_user }}"
           register: __sap_patching_register_rks_start
-          failed_when: "__sap_patching_register_rks_start.rc != 0 or 'FAIL' in __sap_patching_register_rks_start.stdout"
           changed_when: __sap_patching_register_rks_start.rc == 0
 
-        # TODO: Add orchestrated saproot execution after all instances are done if possible.
-        # {{ __sap_patching_fact_kernel_or_webdisp }}_saproot.yml
+        - name: SAP Patching - Kernel - Restart - Fail if 'sapcontrol' with function 'UpdateSystem' has failed
+          ansible.builtin.fail:
+            msg: |
+              FAIL: The command 'sapcontrol' with function 'UpdateSystem' has failed for current kernel.
+              Command: {{ __command_update_system }}
+              Output: {{ __sap_patching_register_rks_start.stdout | d('') }}
+              Error: {{ __sap_patching_register_rks_start.stderr | d('') }}
+          when:
+            - __sap_patching_register_rks_start.rc != 0
+              or 'FAIL' in __sap_patching_register_rks_start.stdout
+
+    # TODO: Add orchestrated saproot execution after all instances are done if possible.
+    # {{ __sap_patching_fact_kernel_or_webdisp }}_saproot.yml
 
 
-    # Restart/Bootstrap ABAP system and execute saproot.sh
-    - name: Block for all or bootstrap kernel restart strategy
-      when: __sap_patching_fact_kernel_restart_strategy in ["all", "bootstrap"]
+# Restart/Bootstrap ABAP system and execute saproot.sh
+- name: Block for all or bootstrap kernel restart strategy
+  when: __sap_patching_fact_kernel_restart_strategy in ["all", "bootstrap"]
+  block:
+
+    - name: SAP Patching - Kernel - Restart - Include tasks to stop ABAP system
+      ansible.builtin.include_tasks:
+        file: "{{ role_path }}/tasks/startstop/abap_stop.yml"
+      # Stop must happen to avoid 'FAIL: Instance still running' during Bootstrap.
+      # when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
+
+    - name: Block to set command for both execution and fail validation
+      vars:
+        __command_bootstrap: >-
+          source ~/.profile &&
+          sapcontrol
+          -nr {{ instance_item[1] }}
+          -function Bootstrap
       block:
-
-        - name: SAP Patching - Kernel - Restart - Stop ABAP system
-          ansible.builtin.include_tasks:
-            file: "{{ role_path }}/tasks/startstop/abap_stop.yml"
-          # Stop must happen to avoid 'FAIL: Instance still running' during Bootstrap.
-          # when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
 
         # Now restart the sapstartsrv for each instance found
         - name: SAP Patching - Kernel - Restart - Bootstrap each detected running instance
           ansible.builtin.shell:
-            cmd: >-
-              source ~/.profile &&
-              sapcontrol
-              -nr {{ instance_item[1] }}
-              -function Bootstrap
+            cmd: "{{ __command_bootstrap }}"
           args:
             executable: /bin/bash
           become: true
@@ -147,36 +175,45 @@
           loop_control:
             loop_var: instance_item
           register: __sap_patching_register_sssrv_restart
-          failed_when: "__sap_patching_register_sssrv_restart.rc != 0 or 'FAIL' in __sap_patching_register_sssrv_restart.stdout"
           changed_when: __sap_patching_register_sssrv_restart.rc == 0
 
+        - name: SAP Patching - Kernel - Restart - Fail if 'sapcontrol' with function 'Bootstrap' has failed
+          ansible.builtin.fail:
+            msg: |
+              FAIL: The command 'sapcontrol' with function 'Bootstrap' has failed for current kernel.
+              Command: {{ __command_bootstrap }}
+              Output: {{ __sap_patching_register_sssrv_restart.stdout | d('') }}
+              Error: {{ __sap_patching_register_sssrv_restart.stderr | d('') }}
+          when:
+            - __sap_patching_register_sssrv_restart.rc != 0
+              or 'FAIL' in __sap_patching_register_sssrv_restart.stdout
 
-        # TODO: Implement async validation of running processes instead of blind wait.
-        - name: SAP Patching - Kernel - Restart - Wait for 1 minute after bootstrap
-          ansible.builtin.wait_for:
-            timeout: 60
+    # TODO: Implement async validation of running processes instead of blind wait.
+    - name: SAP Patching - Kernel - Restart - Wait for 1 minute after bootstrap
+      ansible.builtin.wait_for:
+        timeout: 60
 
-        - name: SAP Patching - Kernel - Restart - Execute saproot.sh to adjust permissions after patching
-          ansible.builtin.include_tasks:
-            file: "{{ __sap_patching_fact_kernel_or_webdisp }}_saproot.yml"
+    - name: SAP Patching - Kernel - Restart - Include tasks to execute saproot.sh to adjust permissions after patching
+      ansible.builtin.include_tasks:
+        file: "{{ __sap_patching_fact_kernel_or_webdisp }}_saproot.yml"
 
-        - name: SAP Patching - Kernel - Restart - Start ABAP system
-          ansible.builtin.include_tasks:
-            file: "{{ role_path }}/tasks/startstop/abap_start.yml"
-          when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
+    - name: SAP Patching - Kernel - Restart - Include tasks to start ABAP system
+      ansible.builtin.include_tasks:
+        file: "{{ role_path }}/tasks/startstop/abap_start.yml"
+      when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
 
 
-    - name: SAP Patching - Kernel - Restart - Show summary of restart execution
-      ansible.builtin.debug:
-        msg: |
-          {% if __sap_patching_fact_kernel_restart_strategy == 'rks' %}
-            INFO: Rolling Kernel Switch (RKS) was initiated in background.
-            This role will not wait for its completion as it can take a long time depending on the system load and timeout settings.
-            You can monitor update process with command: 'sapcontrol -nr NR -function GetSystemUpdateList'.
+- name: SAP Patching - Kernel - Restart - Show summary of restart execution
+  ansible.builtin.debug:
+    msg: |
+      {% if __sap_patching_fact_kernel_restart_strategy == 'rks' %}
+        INFO: Rolling Kernel Switch (RKS) was initiated in background.
+        This role will not wait for its completion as it can take a long time depending on the system load and timeout settings.
+        You can monitor update process with command: 'sapcontrol -nr NR -function GetSystemUpdateList'.
 
-            Next steps:
-            - Manually execute 'saproot.sh' after all instances have been restarted,
-              to ensure that permissions are adjusted after patching has completed.
-          {% else %}
-            INFO: SAP System was restarted to apply new kernel and 'saproot.sh' was executed to adjust permissions after patching.
-          {% endif %}
+        Next steps:
+        - Manually execute 'saproot.sh' after all instances have been restarted,
+          to ensure that permissions are adjusted after patching has completed.
+      {% else %}
+        INFO: SAP System was restarted to apply new kernel and 'saproot.sh' was executed to adjust permissions after patching.
+      {% endif %}

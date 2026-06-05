@@ -2,7 +2,7 @@
 ---
 
 # Search for webdisp SAR files and extract support package number
-- name: SAP Patching - Web Dispatcher - Prepare - Check if webdisp source directory contains .sar files (case-insensitive)
+- name: SAP Patching - Web Dispatcher - Prepare - Find .sar files in the webdisp source directory (case-insensitive)
   ansible.builtin.find:
     paths: "{{ sap_patching_webdisp_source }}"
     patterns: ['(?i)sapwebdisp_.*\.sar$']
@@ -12,13 +12,13 @@
   register: __sap_patching_register_webdisp_source_dir_content
 
 
-- name: Block if sar files were found
-  when: __sap_patching_register_webdisp_source_dir_content.matched > 0
+- name: Block to execute only if SAR files were found
+  when: __sap_patching_register_webdisp_source_dir_content.matched | d(0) > 0
   block:
 
     # In case there are more than one SAR files, get the one with the highest version number
     # NOTE: This differs to kernel prepare steps as multiple EXE files are not permitted.
-    - name: SAP Patching - Web Dispatcher - Prepare - Get the highest version of web dispatcher SAR file
+    - name: SAP Patching - Web Dispatcher - Prepare - Set fact with the highest version of web dispatcher SAR file
       ansible.builtin.set_fact:
         __sap_patching_fact_webdisp_sar: >-
           {{
@@ -32,7 +32,7 @@
 
 
     # Default 'TMP' is used only for folder creation.
-    - name: SAP Patching - Web Dispatcher - Prepare - Extract the web dispatcher version from SAR file name
+    - name: SAP Patching - Web Dispatcher - Prepare - Set fact with extracted web dispatcher version from SAR file name
       ansible.builtin.set_fact:
         __sap_patching_fact_webdisp_pn:
           "{{ (__sap_patching_fact_webdisp_sar
@@ -83,20 +83,26 @@
       changed_when: "'SAPCAR: processing archive' in __sap_patching_register_extract_result.stdout"
       failed_when: __sap_patching_register_extract_result.rc != 0
 
+    - name: SAP Patching - Web Dispatcher - Prepare - Fail if extraction of web dispatcher SAR file failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: Extraction of web dispatcher SAR file '{{ __sap_patching_fact_webdisp_sar }}' failed.
+          SAPCAR output: {{ __sap_patching_register_extract_result.stdout | d('') }}
+          SAPCAR error: {{ __sap_patching_register_extract_result.stderr | d('') }}
+      when: __sap_patching_register_extract_result.rc != 0
 
-    - name: SAP Patching - Web Dispatcher - Prepare - Check that web dispatcher extracted path exists
+
+    - name: SAP Patching - Web Dispatcher - Prepare - Stat availability of the web dispatcher extracted path
       ansible.builtin.stat:
         path: "{{ __sap_patching_fact_webdisp_extract_target }}/sapwebdisp"
       register: __sap_patching_register_webdisp_extracted_stat
 
-    - name: SAP Patching - Web Dispatcher - Prepare - Assert web dispatcher extracted path exists
-      ansible.builtin.assert:
-        that:
-          - __sap_patching_register_webdisp_extracted_stat.stat.exists
-          - __sap_patching_register_webdisp_extracted_stat.stat.isreg
-        fail_msg: |
-          FAIL: Expected Web Dispatcher directory '{{ __sap_patching_fact_webdisp_extract_target }}/sapwebdisp' does not exist.
-          Please check if the SAR file '{{ __sap_patching_fact_webdisp_sar }}' is correct and contains the expected 'sapwebdisp' executable.
+    - name: SAP Patching - Web Dispatcher - Prepare - Fail if target web dispatcher directory does not exist or is not a file
+      ansible.builtin.fail:
+        msg: |
+          FAIL: Extracted web dispatcher directory '{{ __sap_patching_fact_webdisp_extract_target }}' does not exist or is not a file.
+      when: not (__sap_patching_register_webdisp_extracted_stat.stat.exists
+              and __sap_patching_register_webdisp_extracted_stat.stat.isreg)
 
 
     # Reason for noqa: Shell retains the environment variables.
@@ -110,7 +116,7 @@
       failed_when: __sap_patching_register_webdisp_release_patch_output.rc != 0
 
     # webdisp is using = between release/patch and the number unlike disp+work which is using just spaces
-    - name: SAP Patching - Web Dispatcher - Prepare - Extract webdisp release and patch number from sapwebdisp output
+    - name: SAP Patching - Web Dispatcher - Prepare - Set facts with extracted webdisp release and patch number from sapwebdisp output
       ansible.builtin.set_fact:
         __sap_patching_fact_webdisp_release_wd:
           "{{ __sap_patching_register_webdisp_release_patch_output.stdout_lines
@@ -121,14 +127,13 @@
             | select('search', '^patch number') | list | first
             | regex_search('patch number\\s+=+\\s+(\\d+)', '\\1') | first }}"
 
-    - name: SAP Patching - Web Dispatcher - Prepare - Assert expected webdisp patch number matches extracted SAR patch number
-      ansible.builtin.assert:
-        that:
-          - (__sap_patching_fact_webdisp_patch_wd | int) == (__sap_patching_fact_webdisp_pn | int)
-        fail_msg: |
+    - name: SAP Patching - Web Dispatcher - Prepare - Fail if expected webdisp patch number does not match extracted SAR patch number
+      ansible.builtin.fail:
+        msg: |
           FAIL: Mismatch between webdisp patch number extracted from sapwebdisp and expected patch number from SAR file names.
           File name patch number: {{ __sap_patching_fact_webdisp_pn }}
           Webdisp patch number: {{ __sap_patching_fact_webdisp_patch_wd }}
+        when: not ((__sap_patching_fact_webdisp_patch_wd | int) == (__sap_patching_fact_webdisp_pn | int))
 
 
     # We copy first, then remove, because Ansible does not have builtin move module.
@@ -147,7 +152,7 @@
         path: "{{ __sap_patching_fact_webdisp_extract_target }}"
         state: absent
 
-    - name: SAP Patching - Web Dispatcher - Prepare - Update target webdisp SP directory variable after rename - autodetect mode
+    - name: SAP Patching - Web Dispatcher - Prepare - Set fact with updated target webdisp SP directory variable after rename - autodetect mode
       ansible.builtin.set_fact:
         __sap_patching_fact_webdisp_extract_target:
           "{{ __sap_patching_webdisp_base }}/{{ __sap_patching_webdisp_extracted }}_{{
@@ -165,9 +170,10 @@
       become: true
       become_user: "{{ sap_patching_file_owner }}"
 
-    - name: SAP Patching - Web Dispatcher - Prepare - Set sap_patching_webdisp_to_apply variable for use in later tasks
+    - name: SAP Patching - Web Dispatcher - Prepare - Set fact with prepared path for further execution tasks
       ansible.builtin.set_fact:
-        sap_patching_webdisp_to_apply: "{{ __sap_patching_fact_webdisp_extract_target }}"
+        sap_patching_webdisp_to_apply:
+          "{{ __sap_patching_fact_webdisp_extract_target }}"
 
 
   # Cleanup all folders created during web dispatcher preparation in case of failure to avoid leaving the system in an inconsistent state.
@@ -177,11 +183,13 @@
         path: "{{ __sap_patching_fact_webdisp_extract_target }}"
         state: absent
 
-    - name: SAP Patching - Web Dispatcher - Prepare - Preparation tasks have failed
+    - name: SAP Patching - Web Dispatcher - Prepare - Fail if preparation tasks have failed
       ansible.builtin.fail:
         msg: |
-          Web Dispatcher preparation tasks have failed. All created folders during web dispatcher preparation have been removed.
-          Please review the error messages above to identify the root cause of the failure and re-run the playbook after resolving the issue.
+          FAIL: Web Dispatcher preparation tasks have failed.
+          All created folders during web dispatcher preparation have been removed.
+          Please review the error messages above to identify the root cause of the failure
+          and re-run the playbook after resolving the issue.
 
 
 - name: SAP Patching - Web Dispatcher - Prepare - Inform that SAR files were not found

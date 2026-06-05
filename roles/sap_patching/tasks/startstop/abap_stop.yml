@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-- name: SAP Patching - Stop ABAP - Setting correct sid variables if required
+- name: SAP Patching - Stop ABAP - Set fact with SID variable if required
   ansible.builtin.set_fact:
     __sap_patching_fact_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
   when:
@@ -9,48 +9,73 @@
       or __sap_patching_params.task_execution_mode | d('',true) == 'direct'
 
 
-- name: SAP Patching - Stop ABAP - Get a list of sapstartsrv instances
+- name: SAP Patching - Stop ABAP - Include tasks to get a list of sapstartsrv instances
   ansible.builtin.include_tasks:
     file: sapstartsrv_instances.yml
 
+# Instance list is already verified before this file is executed,
+# so we can be sure that there is at least one instance to execute the start on.
 
-- name: Block to proceed only if at least one instance is found
-  when: __sap_patching_fact_instance_list | d([]) | length > 0
+- name: Block to stop the system and wait until all instances are down
+  run_once: true  # StopSystem must be executed from one host only.
+  vars:
+    __command_stop_system: >-
+      source ~/.profile &&
+      sapcontrol
+      -nr {{ __sap_patching_fact_instance_list[0][1] }}
+      -function StopSystem
+    __command_stop_wait: >-
+      source ~/.profile &&
+      sapcontrol
+      -nr {{ __sap_patching_fact_instance_list[0][1] }}
+      -function WaitforStopped 600 10
+
   block:
 
-    - name: Block to stop the system and wait until all instances are down
-      run_once: true
-      block:
-        # Grabbing the first instance number from the list as any instance can stop the system
-        - name: SAP Patching - Stop ABAP - Stop the system
-          ansible.builtin.shell:
-            cmd: >-
-              source ~/.profile &&
-              sapcontrol
-              -nr {{ __sap_patching_fact_instance_list[0][1] }}
-              -function StopSystem
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
-          register: __sap_patching_register_stop_system
-          failed_when: "__sap_patching_register_stop_system.rc != 0 or 'FAIL' in __sap_patching_register_stop_system.stdout"
-          changed_when: __sap_patching_register_stop_system.rc == 0
+    # Grabbing the first instance number from the list as any instance can stop the system
+    - name: SAP Patching - Stop ABAP - Execute 'sapcontrol' with function 'StopSystem' to stop the system
+      ansible.builtin.shell:
+        cmd: "{{ __command_stop_system }}"
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+      register: __sap_patching_register_stop_system
+      changed_when: __sap_patching_register_stop_system.rc == 0
 
-        - name: SAP Patching - Stop ABAP - Wait for the system to stop
-          ansible.builtin.shell:
-            cmd: >-
-              source ~/.profile &&
-              sapcontrol
-              -nr {{ __sap_patching_fact_instance_list[0][1] }}
-              -function WaitforStopped 600 10
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
-          register: __sap_patching_register_stop_system_wait
-          failed_when: "__sap_patching_register_stop_system_wait.rc != 0 or 'FAIL' in __sap_patching_register_stop_system_wait.stdout"
-          changed_when: __sap_patching_register_stop_system_wait.rc == 0
+    - name: SAP Patching - Stop ABAP - Fail if 'sapcontrol' with function 'StopSystem' has failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'sapcontrol' with function 'StopSystem' has failed for current kernel.
+          Command: {{ __command_stop_system }}
+          Output: {{ __sap_patching_register_stop_system.stdout | d('') }}
+          Error: {{ __sap_patching_register_stop_system.stderr | d('') }}
+      when:
+        - __sap_patching_register_stop_system.rc != 0
+          or 'FAIL' in __sap_patching_register_stop_system.stdout
+
+
+    - name: SAP Patching - Stop ABAP - Execute 'sapcontrol' with function 'WaitforStopped' to wait until the system is stopped
+      ansible.builtin.shell:
+        cmd: "{{ __command_stop_wait }}"
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+      register: __sap_patching_register_stop_system_wait
+      changed_when: __sap_patching_register_stop_system_wait.rc == 0
+
+    - name: SAP Patching - Stop ABAP - Fail if 'sapcontrol' with function 'WaitforStopped' has failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'sapcontrol' with function 'WaitforStopped' has failed for current kernel.
+          Command: {{ __command_stop_wait }}
+          Output: {{ __sap_patching_register_stop_system_wait.stdout | d('') }}
+          Error: {{ __sap_patching_register_stop_system_wait.stderr | d('') }}
+      when:
+        - __sap_patching_register_stop_system_wait.rc != 0
+          or 'FAIL' in __sap_patching_register_stop_system_wait.stdout
+
 
     # This code has been superseded. Keeping here for reference. To be removed at the end of 2027.
     # # This is a bit crude, but safest to make sure we continue only if the whole system is down

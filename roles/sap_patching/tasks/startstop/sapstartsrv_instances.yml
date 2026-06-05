@@ -10,40 +10,39 @@
 #   failed_when: __sap_patching_register_sap_instances.rc != 0
 
 
-# RD: Consider using lssap instead? That will show all, not just running sapstartsrv instances
-# /usr/sap/hostctrl/exe/lssap | grep {{ __sap_patching_fact_sap_system_sid }} | awk -F '|' '{print $2}'
-# Also we are ignoring SUM and HDB sapstartsrv processes.
-# Also not using pipefail as we have grep which can return 1 if no lines are found
-# which we want to ignore but we still want to catch errors from ps command itself.
-- name: SAP Patching - Detect Instances - Get all running instances of sapstartsrv on the current host
-  ansible.builtin.shell:
-    cmd: >
-      set -o pipefail &&
-      ps -U {{ __sap_patching_fact_sidadm_user }}
-      -o cmd
-      --no-header
-      | awk -F '/' '/sapstartsrv/ && !/SUM|HDB|grep/ {print $5}'
-  register: __sap_patching_register_sap_instances
-  changed_when: false
-  failed_when:
-    - __sap_patching_register_sap_instances.rc != 0
-    - "'error: user name does not exist' not in __sap_patching_register_sap_instances.stderr"
+- name: Block for existing user only
   when: __sap_patching_fact_sidadm_user in ansible_facts['getent_passwd']
+  block:
 
+    # RD: Consider using lssap instead? That will show all, not just running sapstartsrv instances
+    # /usr/sap/hostctrl/exe/lssap | grep {{ __sap_patching_fact_sap_system_sid }} | awk -F '|' '{print $2}'
+    # Also we are ignoring SUM and HDB sapstartsrv processes.
+    # Also not using pipefail as we have grep which can return 1 if no lines are found
+    # which we want to ignore but we still want to catch errors from ps command itself.
+    - name: SAP Patching - Detect Instances - Get all running instances of sapstartsrv on the current host
+      ansible.builtin.shell:
+        cmd: >
+          set -o pipefail &&
+          ps -U {{ __sap_patching_fact_sidadm_user }}
+          -o cmd
+          --no-header
+          | awk -F '/' '/sapstartsrv/ && !/SUM|HDB|grep/ {print $5}'
+      register: __sap_patching_register_sap_instances
+      changed_when: false
 
-- name: SAP Patching - Detect Instances - Parse instance types and numbers
-  ansible.builtin.set_fact:
-    # List of lists: [['ASCS', '00'], ['D', '01']]
-    __sap_patching_fact_instance_list:
-      "{{ __sap_patching_register_sap_instances.stdout_lines
-        | map('regex_search', '([A-Z]+)([0-9]{2})', '\\1', '\\2')
-        | select('defined')
-        | list }}"
+    - name: SAP Patching - Detect Instances - Set facts with parsed instance types and numbers
+      ansible.builtin.set_fact:
+        # List of lists: [['ASCS', '00'], ['D', '01']]
+        __sap_patching_fact_instance_list:
+          "{{ __sap_patching_register_sap_instances.stdout_lines
+            | map('regex_search', '([A-Z]+)([0-9]{2})', '\\1', '\\2')
+            | select('defined')
+            | list }}"
 
-    # Dictionary of instance keys: {'ASCS': '00', 'D': '01'}
-    __sap_patching_fact_instance_dict:
-      "{{ dict(__sap_patching_register_sap_instances.stdout_lines
-        | map('regex_search', '([A-Z]+)([0-9]{2})', '\\1', '\\2')
-        | select('defined')
-        | list) }}"
-  when: __sap_patching_register_sap_instances.stdout_lines | d([]) | length > 0
+        # Dictionary of instance keys: {'ASCS': '00', 'D': '01'}
+        __sap_patching_fact_instance_dict:
+          "{{ dict(__sap_patching_register_sap_instances.stdout_lines
+            | map('regex_search', '([A-Z]+)([0-9]{2})', '\\1', '\\2')
+            | select('defined')
+            | list) }}"
+      when: __sap_patching_register_sap_instances.stdout_lines | d([]) | length > 0

@@ -4,14 +4,12 @@
 - name: SAP Patching - Kernel - Apply - Set fact with kernel symlink if kernel is not specified
   ansible.builtin.set_fact:
     __sap_patching_fact_kernel_to_apply: "{{ __sap_patching_fact_kernel_to_apply_symlink }}"
-  when:
-    - __sap_patching_fact_kernel_to_apply is not defined
-      or __sap_patching_fact_kernel_to_apply | type_debug == "NoneType"
-      or __sap_patching_fact_kernel_to_apply | string | trim | length == 0
+  when: __sap_patching_fact_kernel_to_apply | string | trim | length == 0
 
-- name: SAP Patching - Kernel - Apply - Update kernel path if it is not an absolute path
+- name: SAP Patching - Kernel - Apply - Set fact with updated kernel path if it is not an absolute path
   ansible.builtin.set_fact:
-    __sap_patching_fact_kernel_to_apply: "{{ __sap_patching_fact_kernel_base }}/{{ __sap_patching_fact_kernel_to_apply }}"
+    __sap_patching_fact_kernel_to_apply:
+      "{{ __sap_patching_fact_kernel_base }}/{{ __sap_patching_fact_kernel_to_apply }}"
   when: not __sap_patching_fact_kernel_to_apply.startswith('/')
 
 # - name: Append __sap_patching_kernel_extracted to sap_patching_kernel_to_apply if not present
@@ -27,19 +25,20 @@
 - name: Block for kernel files on shared storage
   when: __sap_patching_fact_kernel_extracted_shared
   block:
-    - name: SAP Patching - Kernel - Apply - Check availability of kernel source directory
+    - name: SAP Patching - Kernel - Apply - Stat availability of kernel source directory
       ansible.builtin.stat:
         path: "{{ __sap_patching_fact_kernel_to_apply }}"
       register: __sap_patching_register_kernel_to_apply_stat
-      failed_when: not __sap_patching_register_kernel_to_apply_stat.stat.exists
 
-    - name: SAP Patching - Kernel - Apply - Assert that it is a directory or symlink
-      ansible.builtin.assert:
-        that:
-          - __sap_patching_register_kernel_to_apply_stat.stat.isdir
-            or __sap_patching_register_kernel_to_apply_stat.stat.islnk
-        fail_msg: |
-          FAIL: The directory "{{ __sap_patching_fact_kernel_to_apply }}" is not a directory or symlink.
+    - name: SAP Patching - Kernel - Apply - Fail if kernel path does not exist and is not a directory or symlink
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The specified kernel path "{{ __sap_patching_fact_kernel_to_apply }}" is not a directory or symlink.
+          Please ensure that the kernel files have been extracted to the shared folder
+          and the variable 'sap_patching_kernel_to_apply' is set correctly.
+      when: not __sap_patching_register_kernel_to_apply_stat.stat.exists
+              or not (__sap_patching_register_kernel_to_apply_stat.stat.isdir
+                or __sap_patching_register_kernel_to_apply_stat.stat.islnk)
 
     - name: SAP Patching - Kernel - Apply - Check the content of '{{ __sap_patching_fact_kernel_to_apply }}'
       ansible.builtin.find:
@@ -47,21 +46,19 @@
         file_type: file
       register: __sap_patching_register_kernel_to_apply_files
 
-    - name: SAP Patching - Kernel - Apply - Assert that '{{ __sap_patching_fact_kernel_to_apply }}' is not empty
-      ansible.builtin.assert:
-        that:
-          - __sap_patching_register_kernel_to_apply_files.matched | int > 0
-        fail_msg: |
+    - name: SAP Patching - Kernel - Apply - Fail if the kernel directory is empty
+      ansible.builtin.fail:
+        msg: |
           FAIL: The directory "{{ __sap_patching_fact_kernel_to_apply }}" is empty and patching cannot proceed!
           Ensure that the kernel SAR files have been extracted to the shared folder and re-run the playbook.
-
+      when: __sap_patching_register_kernel_to_apply_files.matched | int == 0
 
 - name: SAP Patching - Kernel - Apply - Set fact with global exe directory
   ansible.builtin.set_fact:
     __sap_patching_fact_kernel_global_exe:
       "/usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run"
 
-- name: SAP Patching - Kernel - Apply - Check availability of {{ __sap_patching_fact_kernel_global_exe }}
+- name: SAP Patching - Kernel - Apply - Stat availability of {{ __sap_patching_fact_kernel_global_exe }}
   ansible.builtin.stat:
     path: "{{ __sap_patching_fact_kernel_global_exe }}"
   register: __sap_patching_register_sapmnt_exe_stat
@@ -81,13 +78,12 @@
         file_type: file
       register: __sap_patching_register_sapmnt_exe_files
 
-    - name: SAP Patching - Kernel - Apply - Assert that global exe directory is not empty
-      ansible.builtin.assert:
-        that:
-          - __sap_patching_register_sapmnt_exe_files.matched | int > 0
-        fail_msg: |
+    - name: SAP Patching - Kernel - Apply - Fail if global exe directory is empty
+      ansible.builtin.fail:
+        msg: |
           FAIL: The global exe directory "{{ __sap_patching_fact_kernel_global_exe }}" is empty and patching cannot proceed!
           Ensure that targeted SAP system is correctly installed.
+      when: __sap_patching_register_sapmnt_exe_files.matched | int == 0
 
     - name: SAP Patching - Kernel - Apply - Copy kernel files to global exe directory
       ansible.builtin.copy:
@@ -104,8 +100,9 @@
   # This rescue block cannot remove any files in current form, because backup is not implemented.
   # TODO: Add global exe backup tasks that can be used in rescue block to restore original state.
   rescue:
-    - name: SAP Patching - Kernel - Apply - Kernel patching tasks have failed
+    - name: SAP Patching - Kernel - Apply - Fail if kernel patching tasks have failed
       ansible.builtin.fail:
         msg: |
-          Kernel patching tasks have failed.
-          Please review the error messages above to identify the root cause of the failure and re-run the playbook after resolving the issue.
+          FAIL: Kernel patching tasks have failed.
+          Please review the error messages above to identify the root cause of the failure
+          and re-run the playbook after resolving the issue.

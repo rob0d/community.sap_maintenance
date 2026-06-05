@@ -9,6 +9,11 @@
     __sap_patching_fact_kernel_restart_strategy: "{{ sap_patching_kernel_restart_strategy }}"
     __sap_patching_fact_kernel_or_webdisp: "abap_kernel"
 
+- name: SAP Patching - Kernel - Restart - Include tasks to get a list of sapstartsrv instances
+  ansible.builtin.include_tasks:
+    file: "{{ role_path }}/tasks/startstop/sapstartsrv_instances.yml"
+
 - name: SAP Patching - Kernel - Restart - Execute kernel restart function to restart the system
   ansible.builtin.include_tasks:
     file: xnw_kernel_restart.yml
+  when: __sap_patching_fact_instance_list | d([]) | length > 0

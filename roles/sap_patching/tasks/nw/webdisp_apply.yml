@@ -6,7 +6,7 @@
   ansible.builtin.set_fact:
     __sap_patching_fact_sap_system_sid: "{{ sap_patching_wdp_system_sid | upper }}"
     __sap_patching_fact_sidadm_user: "{{ sap_patching_wdp_system_sid | lower }}adm"
-    __sap_patching_fact_kernel_to_apply: "{{ sap_patching_webdisp_to_apply | d() }}"
+    __sap_patching_fact_kernel_to_apply: "{{ sap_patching_webdisp_to_apply | d('') }}"
     __sap_patching_fact_kernel_to_apply_symlink: "{{ sap_patching_webdisp_to_apply_symlink }}"
     __sap_patching_fact_kernel_base: "{{ sap_patching_webdisp_base }}"
     __sap_patching_fact_kernel_extracted_shared: "{{ sap_patching_webdisp_extracted_shared }}"

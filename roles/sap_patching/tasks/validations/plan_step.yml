@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-- name: SAP Patching - Validation - Verify that plan step '{{ __sap_patching_step }}' is valid
-  ansible.builtin.assert:
-    that:
-      - __sap_patching_step in __sap_patching_exec_def.keys()
-    fail_msg: |
+- name: SAP Patching - Validation - Fail if plan step '{{ __sap_patching_step }}' is not valid
+  ansible.builtin.fail:
+    msg: |
       FAIL: Execution plan step '{{ __sap_patching_step }}' is not valid.
       List of valid steps: {{ __sap_patching_exec_def.keys() | list | join(', ') }}.
+  when: __sap_patching_step not in __sap_patching_exec_def.keys()
   run_once: true
 
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-- name: SAP Patching - Start ABAP - Setting correct sid variables if required
+- name: SAP Patching - Start ABAP - Set fact with SID variable if required
   ansible.builtin.set_fact:
     __sap_patching_fact_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
   when:
@@ -9,68 +9,91 @@
       or __sap_patching_params.task_execution_mode | d('',true)  == 'direct'
 
 
-- name: SAP Patching - Start ABAP - Get a list of sapstartsrv instances
+- name: SAP Patching - Start ABAP - Include tasks to get a list of sapstartsrv instances
   ansible.builtin.include_tasks:
     file: sapstartsrv_instances.yml
 
+# Instance list is already verified before this file is executed,
+# so we can be sure that there is at least one instance to execute the start on.
 
-- name: Block to proceed only if at least one instance is found
-  when: __sap_patching_fact_instance_list | d([]) | length > 0
+- name: Block to start the system and wait until all instances are up
+  run_once: true  # StartSystem must be executed from one host only.
+  vars:
+    __command_start_system: >-
+      source ~/.profile &&
+      sapcontrol
+      -nr {{ __sap_patching_fact_instance_list[0][1] }}
+      -function StartSystem
+    __command_start_wait: >-
+      source ~/.profile &&
+      sapcontrol
+      -nr {{ __sap_patching_fact_instance_list[0][1] }}
+      -function WaitforStarted 600 10
+
   block:
+    - name: SAP Patching - Start ABAP - Execute 'sapcontrol' with function 'StartSystem' to start the system
+      ansible.builtin.shell:
+        cmd: "{{ __command_start_system }}"
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+      register: __sap_patching_register_start_system
+      changed_when: __sap_patching_register_start_system.rc == 0
 
-    - name: Block to start the system and wait until all instances are up
-      run_once: true
-      block:
-        - name: SAP Patching - Start ABAP - Start the system
-          ansible.builtin.shell:
-            cmd: >-
-              source ~/.profile &&
-              sapcontrol
-              -nr {{ __sap_patching_fact_instance_list[0][1] }}
-              -function StartSystem
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
-          register: __sap_patching_register_start_system
-          failed_when: "__sap_patching_register_start_system.rc != 0 or 'FAIL' in __sap_patching_register_start_system.stdout"
-          changed_when: __sap_patching_register_start_system.rc == 0
-
-        - name: SAP Patching - Start ABAP - Wait for the system to start
-          ansible.builtin.shell:
-            cmd: >-
-              source ~/.profile &&
-              sapcontrol
-              -nr {{ __sap_patching_fact_instance_list[0][1] }}
-              -function WaitforStarted 600 10
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
-          register: __sap_patching_register_start_system_wait
-          failed_when: "__sap_patching_register_start_system_wait.rc != 0 or 'FAIL' in __sap_patching_register_start_system_wait.stdout"
-          changed_when: __sap_patching_register_start_system_wait.rc == 0
+    - name: SAP Patching - Start ABAP - Fail if 'sapcontrol' with function 'StartSystem' has failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'sapcontrol' with function 'StartSystem' has failed for current kernel.
+          Command: {{ __command_start_system }}
+          Output: {{ __sap_patching_register_start_system.stdout | d('') }}
+          Error: {{ __sap_patching_register_start_system.stderr | d('') }}
+      when:
+        - __sap_patching_register_start_system.rc != 0
+          or 'FAIL' in __sap_patching_register_start_system.stdout
 
 
-        # This code has been superseded. Keeping here for reference. To be removed at the end of 2027.
-        # # This is a bit crude, but safest to make sure we continue only if the whole system is up
-        # # Grabbing the first instance number from the list as any instance can see all others
-        # - name: Wait until all instances GREEN and not GRAY or YELLOW
-        #   when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
-        #   #source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }}
-        #   -format script -function GetSystemInstanceList | grep 'dispstatus: GRAY$\|dispstatus: YELLOW$\|FAIL'
-        #   ansible.builtin.shell: |
-        #     source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }}
-        #     -format script -function GetSystemInstanceList | grep 'dispstatus:\|FAIL'
-        #   args:
-        #     executable: /bin/bash
-        #   become: true
-        #   become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
-        #   register: __sap_patching_register_instances_check_started
-        #   until: "'GRAY' not in __sap_patching_register_instances_check_started.stdout
-        #     and 'YELLOW' not in __sap_patching_register_instances_check_started.stdout
-        #     and 'GREEN' in __sap_patching_register_instances_check_started.stdout"
-        #   retries: 30
-        #   delay: 20
-        #   failed_when: "'FAIL' in __sap_patching_register_instances_check_started.stdout"
-        #   changed_when: false
+    - name: SAP Patching - Start ABAP - Execute 'sapcontrol' with function 'WaitforStarted' to wait until the system is started
+      ansible.builtin.shell:
+        cmd: "{{ __command_start_wait }}"
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+      register: __sap_patching_register_start_system_wait
+      changed_when: __sap_patching_register_start_system_wait.rc == 0
+
+    - name: SAP Patching - Start ABAP - Fail if 'sapcontrol' with function 'WaitforStarted' has failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'sapcontrol' with function 'WaitforStarted' has failed for current kernel.
+          Command: {{ __command_start_wait }}
+          Output: {{ __sap_patching_register_start_system_wait.stdout | d('') }}
+          Error: {{ __sap_patching_register_start_system_wait.stderr | d('') }}
+      when:
+        - __sap_patching_register_start_system_wait.rc != 0
+          or 'FAIL' in __sap_patching_register_start_system_wait.stdout
+
+
+    # This code has been superseded. Keeping here for reference. To be removed at the end of 2027.
+    # # This is a bit crude, but safest to make sure we continue only if the whole system is up
+    # # Grabbing the first instance number from the list as any instance can see all others
+    # - name: Wait until all instances GREEN and not GRAY or YELLOW
+    #   when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
+    #   #source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }}
+    #   -format script -function GetSystemInstanceList | grep 'dispstatus: GRAY$\|dispstatus: YELLOW$\|FAIL'
+    #   ansible.builtin.shell: |
+    #     source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }}
+    #     -format script -function GetSystemInstanceList | grep 'dispstatus:\|FAIL'
+    #   args:
+    #     executable: /bin/bash
+    #   become: true
+    #   become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+    #   register: __sap_patching_register_instances_check_started
+    #   until: "'GRAY' not in __sap_patching_register_instances_check_started.stdout
+    #     and 'YELLOW' not in __sap_patching_register_instances_check_started.stdout
+    #     and 'GREEN' in __sap_patching_register_instances_check_started.stdout"
+    #   retries: 30
+    #   delay: 20
+    #   failed_when: "'FAIL' in __sap_patching_register_instances_check_started.stdout"
+    #   changed_when: false

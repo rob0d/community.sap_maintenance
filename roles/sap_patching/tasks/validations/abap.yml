@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-- name: SAP Patching - Validation - ABAP - Assert that the variable 'sap_patching_sap_system_sid' is defined and valid
+- name: SAP Patching - Validation - ABAP - Assert that the variable 'sap_patching_sap_system_sid' is defined as valid string
   ansible.builtin.assert:
     that:
       - sap_patching_sap_system_sid is defined

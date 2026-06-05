@@ -17,7 +17,7 @@
         FAIL: The 'sap_patching_execution_plan' variable cannot be an empty list.
       {% endif %}
 
-- name: SAP Patching - Validation - Assert that the variables with suffix 'to_apply' are defined as non-empty strings
+- name: SAP Patching - Validation - Assert that the variables with suffix 'to_apply_symlink' are defined as non-empty strings
   ansible.builtin.assert:
     that:
       - lookup('ansible.builtin.vars', var_item, default='SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED') != 'SAP_PATCHING_UNDEFINED_VARIABLE_DETECTED'

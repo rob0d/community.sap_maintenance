@@ -42,8 +42,8 @@ __sap_patching_exec_def:
   hdb_client_prepare:
     file: hana/hdb_client_prepare.yml
     validators:
-      - hdb_client
       - prepare
+      - hdb_client
     where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
     tags:
       - sap_patching_hdb_client_prepare
@@ -63,6 +63,7 @@ __sap_patching_exec_def:
   hdb_server_prepare:
     file: hana/hdb_server_prepare.yml
     validators:
+      - prepare
       - hdb_server
     where:
     vars:
@@ -96,6 +97,7 @@ __sap_patching_exec_def:
   host_agent_prepare:
     file: agents/host_agent_prepare.yml
     validators:
+      - prepare
       - host_agent
     where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
     vars:
@@ -121,6 +123,7 @@ __sap_patching_exec_def:
   webdisp_prepare:
     file: nw/webdisp_prepare.yml
     validators:
+      - prepare
       - webdisp
     where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
     vars:
@@ -184,8 +187,20 @@ __sap_patching_webdisp_extracted: extracted
 # Default paths without trailing slash
 __sap_patching_kernel_source: "{{ sap_patching_kernel_source | regex_replace('\\/$', '') }}"
 __sap_patching_kernel_base: "{{ sap_patching_kernel_base | regex_replace('\\/$', '') }}"
-__sap_patching_sapcar_path: "{{ sap_patching_sapcar_path | regex_replace('\\/$', '') }}"
+
+__sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_source | regex_replace('\\/$', '') }}"
+__sap_patching_hdb_server_base: "{{ sap_patching_hdb_server_base | regex_replace('\\/$', '') }}"
+
+__sap_patching_hdb_client_source: "{{ sap_patching_hdb_client_source | regex_replace('\\/$', '') }}"
+__sap_patching_hdb_client_base: "{{ sap_patching_hdb_client_base | regex_replace('\\/$', '') }}"
+
+__sap_patching_webdisp_source: "{{ sap_patching_webdisp_source | regex_replace('\\/$', '') }}"
 __sap_patching_webdisp_base: "{{ sap_patching_webdisp_base | regex_replace('\\/$', '') }}"
+
+__sap_patching_host_agent_source: "{{ sap_patching_host_agent_source | regex_replace('\\/$', '') }}"
+__sap_patching_host_agent_base: "{{ sap_patching_host_agent_base | regex_replace('\\/$', '') }}"
+
+__sap_patching_sapcar_path: "{{ sap_patching_sapcar_path | regex_replace('\\/$', '') }}"
 
 # Default boolean variables
 __sap_patching_kernel_normal_mode: true
