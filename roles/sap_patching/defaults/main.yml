@@ -183,8 +183,11 @@ sap_patching_webdisp_extracted_shared: true
 # Generally no need to change this as it defaults to /usr/sap/<SID>/SYS/exe/run
 __sap_patching_fact_kernel_global_exe: ''
 
-# RKS wait timeout in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
-sap_patching_rks_wait_timeout: 900
+# See https://help.sap.com/docs/ABAP_PLATFORM_NEW/1ba3197c1aa7489882770103e3a610dc/78cf5bf734c9419e82e7bac87daa7e60.html?locale=en-US
+# RKS start wait timeout in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
+sap_patching_rks_wait_timeout: 660
+# RKS soft shutdown timeout in seconds  - must be more than rdisp/shutdown/max_time (default is 3600 seconds)
+sap_patching_rks_soft_timeout: 3660
 
 # Name of symbolic link to point to the folder to be used by the patching process
 sap_patching_kernel_to_apply_symlink: ansible_to_apply

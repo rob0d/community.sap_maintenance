@@ -1,0 +1,40 @@
+---
+- name: Check the RKS compatibility of the new kernel
+  ansible.builtin.shell: >-
+    set -o pipefail &&
+    /usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run/{{ __sap_patching_instance_executables_dict[__sap_patching_instance_check[0]] }} -v |
+    grep 'RKS compatibility level'
+  environment:
+    LD_LIBRARY_PATH: "/usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run/"
+  register: __sap_patching_register_kernel_new_output
+  changed_when: false
+  failed_when: __sap_patching_register_kernel_new_output.rc != 0
+
+- name: Extract RKS compatibility level from process output
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_new_rks_level: "{{ __sap_patching_register_kernel_new_output.stdout_lines | regex_search('RKS compatibility level\\s+(\\d+)', '\\1') | first }}"
+
+- name: Check the RKS compatibility of the current kernel using sapcontrol
+  ansible.builtin.shell: |
+    set -o pipefail && source ~/.profile &&
+    sapcontrol -nr {{ __sap_patching_instance_check[1] }} -function GetVersionInfo |
+    grep '{{ __sap_patching_instance_executables_dict[__sap_patching_instance_check[0]] }}'
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+  register: __sap_patching_register_kernel_current_output
+  changed_when: false
+  failed_when: "__sap_patching_register_kernel_current_output.rc != 0 or 'FAIL' in __sap_patching_register_kernel_current_output.stdout"
+
+- name: Extract RKS compatibility level from sapcontrol output
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_current_rks_level: "{{ __sap_patching_register_kernel_current_output.stdout_lines | regex_search('RKS compatibility level\\s+(\\d+),', '\\1') | first }}"
+
+- name: Assert RKS compatibility levels match
+  ansible.builtin.assert:
+    that:
+      - (__sap_patching_fact_kernel_current_rks_level | int) == (__sap_patching_fact_kernel_new_rks_level | int)
+    fail_msg: "FAIL: RKS compatibility levels do not match between current and new kernel."
+    success_msg: "SUCCESS: RKS compatibility levels match between current and new kernel."
+  changed_when: false

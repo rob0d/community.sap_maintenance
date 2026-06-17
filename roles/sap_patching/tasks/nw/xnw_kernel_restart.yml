@@ -30,58 +30,52 @@
       changed_when: __sap_patching_register_sapuxuserchk_chown.rc == 0
       failed_when: __sap_patching_register_sapuxuserchk_chown.rc != 0
 
-    - name: Restart ABAP system using Rolling Kernel Switch (RKS) - on one host only
-      run_once: true
+    - name: Restart ABAP system using Rolling Kernel Switch (RKS)
       when:
         - __sap_patching_fact_kernel_restart_strategy == 'rks'
         #- "'nwas_abap_ascs' in group_names"
       block:
-        - name: Check the RKS compatibility of the new kernel using disp+work
-          ansible.builtin.shell: >
-            set -o pipefail && /usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run/disp+work | grep 'RKS compatibility level'
-          environment:
-            LD_LIBRARY_PATH: "/usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run/"
-          register: __sap_patching_register_kernel_new_output
-          changed_when: false
-          failed_when: __sap_patching_register_kernel_new_output.rc != 0
 
-        - name: Extract RKS compatibility level from disp+work output
-          ansible.builtin.set_fact:
-            __sap_patching_fact_kernel_new_rks_level: "{{ __sap_patching_register_kernel_new_output.stdout_lines | regex_search('RKS compatibility level\\s+(\\d+)', '\\1') | first }}"
+        - name: Executing RKS check tasks
+          ansible.builtin.include_tasks:
+            file: xnw_kernel_rks_check.yml
+          loop: "{{ __sap_patching_fact_instance_list }}"
+          loop_control:
+            loop_var: __sap_patching_instance_check
+            label: "{{ __sap_patching_instance_check[0] }}{{ __sap_patching_instance_check[1] }}"
 
-        - name: Check the RKS compatibility of the current kernel using sapcontrol
+        - name: Initiate RKS - one host only (general/non-HA)
+          run_once: true
           ansible.builtin.shell: |
-            set -o pipefail && source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }} -function GetVersionInfo | grep 'disp+work'
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
-          register: __sap_patching_register_kernel_current_output
-          changed_when: false
-          failed_when: "__sap_patching_register_kernel_current_output.rc != 0 or 'FAIL' in __sap_patching_register_kernel_current_output.stdout"
-
-        - name: Extract RKS compatibility level from sapcontrol output
-          ansible.builtin.set_fact:
-            __sap_patching_fact_kernel_current_rks_level: "{{ __sap_patching_register_kernel_current_output.stdout_lines | regex_search('RKS compatibility level\\s+(\\d+),', '\\1') | first }}"
-
-        - name: Assert RKS compatibility levels match
-          ansible.builtin.assert:
-            that:
-              - (__sap_patching_fact_kernel_current_rks_level | int) == (__sap_patching_fact_kernel_new_rks_level | int)
-            fail_msg: "RKS compatibility levels do not match between current and new kernel."
-            success_msg: "RKS compatibility levels match between current and new kernel."
-          changed_when: false
-
-        - name: Initiate RKS
-          ansible.builtin.shell: |
-            source ~/.profile && sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }} -function UpdateSystem {{ sap_patching_rks_wait_timeout }}
+            source ~/.profile &&
+            sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }}
+            -function UpdateSystem {{ sap_patching_rks_wait_timeout }} {{ sap_patching_rks_soft_timeout }}
           args:
             executable: /bin/bash
           become: true
           become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
           register: __sap_patching_register_rks_start
-          failed_when: "__sap_patching_register_rks_start.rc != 0 or 'FAIL' in __sap_patching_register_rks_start.stdout"
+          failed_when:
+            - "'HA Product detected' not in __sap_patching_register_rks_start.stdout"
+            - "__sap_patching_register_rks_start.rc != 0 or 'FAIL' in __sap_patching_register_rks_start.stdout"
           changed_when: __sap_patching_register_rks_start.rc == 0
+
+        - name: Initiate RKS - one host only (HA)
+          when:
+            - "'HA Product detected' in __sap_patching_register_rks_start.stdout"
+            - "__sap_patching_register_rks_start.rc != 0 or 'FAIL' in __sap_patching_register_rks_start.stdout"
+          run_once: true
+          ansible.builtin.shell: |
+            source ~/.profile &&
+            sapcontrol -nr {{ __sap_patching_fact_instance_list[0][1] }}
+            -function UpdateSystem {{ sap_patching_rks_wait_timeout }} {{ sap_patching_rks_soft_timeout }} 1
+          args:
+            executable: /bin/bash
+          become: true
+          become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+          register: __sap_patching_register_rks_start2
+          failed_when: "__sap_patching_register_rks_start2.rc != 0 or 'FAIL' in __sap_patching_register_rks_start2.stdout"
+          changed_when: __sap_patching_register_rks_start2.rc == 0
 
         - name: Make sure you run {{ __sap_patching_fact_kernel_or_webdisp }}_saproot.yml AFTER all instances have been restarted
           ansible.builtin.fail:

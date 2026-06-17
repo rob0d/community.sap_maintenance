@@ -29,6 +29,14 @@ __sap_patching_exec_def:
     where: "{% if group_names | select('search', '^nwas_abap.*') | list | length > 0 %}true{% else %}false{% endif %}"
     vars:
     run_once: false
+  abap_kernel_saproot:
+    file: nw/abap_kernel_saproot.yml
+    validators:
+      - abap
+      - kernel
+    where:
+    vars:
+    run_once: false
 
   # HANA DB client
   hdb_client_prepare:
@@ -172,3 +180,10 @@ __sap_patching_hdb_client_extracted: extracted
 __sap_patching_hdb_server_extracted: extracted
 __sap_patching_host_agent_extracted: extracted
 __sap_patching_webdisp_extracted: extracted
+
+# Mapping betweeen instance types and their corresponding executables to check
+__sap_patching_instance_executables_dict:
+  ASCS: msg_server
+  ERS: enq_replicator
+  D: disp+work
+  W: sapwebdisp
