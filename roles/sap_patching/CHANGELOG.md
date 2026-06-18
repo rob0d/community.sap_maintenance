@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.8] - 2026-06-17
+
+### Added
+
+- N/A
+
+### Changed
+
+- Enhanced the handling of RKS compatibility checks for different instance types (D/ERS/ASCS)
+- Added handling of RKS on HA enabled environments
+
+### Fixed
+
+- Handling of RKS compatibility checks when more than one instance is on the same host
+
 ## [0.4.5] - 2026-03-02
 
 ### Added

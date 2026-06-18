@@ -58,7 +58,7 @@
     - name: Assert that target web dispatcher directory exists and is a directory
       ansible.builtin.assert:
         that:
-          - __sap_patching_register_webdisp_extract_target is defined
+          - __sap_patching_register_webdisp_extract_target_stat is defined
           - __sap_patching_register_webdisp_extract_target_stat.stat.exists
           - __sap_patching_register_webdisp_extract_target_stat.stat.isdir
         fail_msg: "Target web dispatcher directory '{{ __sap_patching_fact_webdisp_extract_target }}' does not exist or is not a directory."
