@@ -186,6 +186,7 @@ __sap_patching_webdisp_extracted: extracted
 
 # Default paths without trailing slash
 __sap_patching_kernel_source: "{{ sap_patching_kernel_source | regex_replace('\\/$', '') }}"
+__sap_patching_kernel_source_local: "{{ sap_patching_kernel_source_local | regex_replace('\\/$', '') }}"
 __sap_patching_kernel_base: "{{ sap_patching_kernel_base | regex_replace('\\/$', '') }}"
 
 __sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_source | regex_replace('\\/$', '') }}"
@@ -195,6 +196,7 @@ __sap_patching_hdb_client_source: "{{ sap_patching_hdb_client_source | regex_rep
 __sap_patching_hdb_client_base: "{{ sap_patching_hdb_client_base | regex_replace('\\/$', '') }}"
 
 __sap_patching_webdisp_source: "{{ sap_patching_webdisp_source | regex_replace('\\/$', '') }}"
+__sap_patching_webdisp_source_local: "{{ sap_patching_webdisp_source_local | regex_replace('\\/$', '') }}"
 __sap_patching_webdisp_base: "{{ sap_patching_webdisp_base | regex_replace('\\/$', '') }}"
 
 __sap_patching_host_agent_source: "{{ sap_patching_host_agent_source | regex_replace('\\/$', '') }}"

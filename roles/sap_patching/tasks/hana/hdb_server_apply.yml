@@ -219,7 +219,7 @@
         # DAMN this needs to be done on the primary node first if HSR is enabled
         - name: Activate HANA SYSTEM user if required (HSR)
           when:
-            - __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_fact_hdb_hsr_sites | last | first ] == ansible_hostname
+            - __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_fact_hdb_hsr_sites | last | first ] == ansible_facts['hostname']
             - sap_patching_hdb_server_activate_system_user | bool
           # - __sap_patching_params.update_mode != 'prepare'
           ansible.builtin.command: >-
@@ -252,14 +252,14 @@
         - name: Loop through HANA DB sites from highest to lowest tier and apply the patch (HSR)
           run_once: true
           vars:
-            _sap_patching_delegated_to_host: "{{ __sap_patching_fact_hdb_host_fqdn[__sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]]] }}"
+            _sap_patching_delegated_to_host: "{{ __sap_patching_fact_hdb_host_fqdn[__sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]]] }}"
           ansible.builtin.include_tasks: hdb_server_apply_patch.yml
-          # when: __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] == ansible_hostname
+          # when: __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] == ansible_facts['hostname']
           # when: ansible_hostname in groups['_sap_patching_hdb_servers']
-          when: __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] in __sap_patching_fact_hdb_host_fqdn
+          when: __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] in __sap_patching_fact_hdb_host_fqdn
           loop: "{{ __sap_patching_fact_hdb_hsr_sites }}"
           loop_control:
-            loop_var: _sap_patching_hdb_hsr_site
+            loop_var: __sap_patching_hdb_hsr_site
 
         # Have re-read the HSR status after patching all sites as the primary may have changed (if clustered and on primary/secondary cluster)
         # or it may not have changed (if just HSR without clustering)
@@ -321,7 +321,7 @@
 
             - name: Deactivate HANA SYSTEM user if required (HSR)
               when:
-                - __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_fact_hdb_hsr_sites | last | first ] == ansible_hostname
+                - __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_fact_hdb_hsr_sites | last | first ] == ansible_facts['hostname']
               ansible.builtin.command: >-
                 /usr/sap/{{ sap_patching_hdb_system_sid }}/SYS/exe/hdb/hdbsql -d SYSTEMDB -quiet -x -a
                 {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key if sap_patching_hdb_server_activate_admin_userstore_key | d('',true) | length > 0 else '' }}

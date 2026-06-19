@@ -1,35 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-- name: SAP Patching - Kernel - Prepare - Stat availability of the kernel base directory with user {{ sap_patching_file_owner }}
-  ansible.builtin.stat:
-    path: "{{ __sap_patching_kernel_base }}"
-  register: __sap_patching_register_kernel_base_stat
-  # Stat with correct user to check permissions.
-  become: true
-  become_user: "{{ sap_patching_file_owner }}"
+# # Update variables to pass into shared tasks.
+# - name: SAP Patching - Kernel - Prepare - Set fact with 'abap_kernel' specific variables
+#   ansible.builtin.set_fact:
+#     __sap_patching_fact_kernel_base: "{{ __sap_patching_kernel_base }}"
+#     __sap_patching_fact_kernel_source: "{{ __sap_patching_kernel_source }}"
+#     __sap_patching_fact_kernel_source_local: "{{ __sap_patching_kernel_source_local }}"
+#     __sap_patching_fact_kernel_files_shared: "{{ sap_patching_kernel_files_shared }}"
+#     __sap_patching_fact_kernel_type: abap_kernel
+#     __sap_patching_fact_kernel_find_patterns: ['(?i).*\.sar$']
 
-- name: SAP Patching - Kernel - Prepare - Fail if user cannot write to kernel base directory
-  ansible.builtin.fail:
-    msg: |
-      FAIL: User '{{ sap_patching_file_owner }}' does not have write permissions
-      to the directory '{{ sap_patching_kernel_base }}'
-      defined in the variable 'sap_patching_kernel_base'.
-
-      Ansible cannot create the symlink '{{ sap_patching_kernel_to_apply_symlink }}'
-      without write access to this path.
-      Please check the directory permissions (chmod/chown).
-  when: not __sap_patching_register_kernel_base_stat.stat.writeable
-
-# Search for kernel SAR files and extract support package number
-- name: SAP Patching - Kernel - Prepare - Find .sar files in the kernel source directory (case-insensitive)
-  ansible.builtin.find:
-    paths: "{{ __sap_patching_kernel_source }}"
-    patterns: ['(?i).*\.sar$']
-    use_regex: true
-    file_type: file
-    recurse: false
-  register: __sap_patching_register_kernel_source_dir_content
+- name: SAP Patching - Kernel - Prepare - Execute shared tasks for kernel prepare
+  ansible.builtin.include_tasks:
+    file: shared_kernel_prepare.yml
+  vars:
+    __sap_patching_fact_kernel_base: "{{ __sap_patching_kernel_base }}"
+    __sap_patching_fact_kernel_source: "{{ __sap_patching_kernel_source }}"
+    __sap_patching_fact_kernel_source_local: "{{ __sap_patching_kernel_source_local }}"
+    __sap_patching_fact_kernel_files_shared: "{{ sap_patching_kernel_files_shared }}"
+    __sap_patching_fact_kernel_type: abap_kernel
+    __sap_patching_fact_kernel_find_patterns: ['(?i).*\.sar$']
 
 
 - name: Block to execute only if SAR files were found
@@ -52,7 +43,7 @@
             | list }}
       when: __all_files | length != __all_files | unique | length
 
-    - name: SAP Patching - Kernel - Prepare - Find SAPEXE* or dw* SAR files
+    - name: SAP Patching - Kernel - Prepare - Find SAR files with 'SAPEXE' or 'dw' prefixes
       ansible.builtin.find:
         paths: "{{ __sap_patching_kernel_source }}"
         patterns:
@@ -64,7 +55,7 @@
       register: __sap_patching_register_kernel_exedw_files
 
 
-    - name: SAP Patching - Kernel - Prepare - Set facts to enable append mode if no SAPEXE/dw SAR files are found
+    - name: SAP Patching - Kernel - Prepare - Set facts to enable append mode if no 'SAPEXE' or 'dw' SAR files are found
       ansible.builtin.set_fact:
         __sap_patching_kernel_normal_mode: false
         __sap_patching_kernel_append_mode: true
@@ -73,7 +64,7 @@
         - sap_patching_kernel_prepare_append_to_version | d('', true) | length > 0
         - sap_patching_kernel_prepare_append_to_version is match("\\d+p\\d+")
 
-    - name: SAP Patching - Kernel - Prepare - Set facts to enable delta mode if no SAPEXE SAR files are found but dw SAR files exist
+    - name: SAP Patching - Kernel - Prepare - Set facts to enable delta mode if no 'SAPEXE' SAR files are found but 'dw' SAR files exist
       ansible.builtin.set_fact:
         __sap_patching_kernel_normal_mode: false
         __sap_patching_kernel_delta_mode: true
@@ -83,10 +74,10 @@
         - __sap_patching_register_kernel_exedw_files.files | selectattr('path', 'search', '(?i)SAPEXEDB_.*\.SAR') | list | length == 0
 
 
-    - name: SAP Patching - Kernel - Prepare - Fail if append mode is not enabled and no SAPEXE/dw SAR files are found
+    - name: SAP Patching - Kernel - Prepare - Fail if append mode is not enabled and no 'SAPEXE' or 'dw' SAR files are found
       ansible.builtin.fail:
         msg: |
-          FAIL: Core Kernel SAR files (SAPEXE/SAPEXEDB/dw) are missing and Append Mode is not correctly configured.
+          FAIL: Core Kernel SAR files ('SAPEXE', 'SAPEXEDB', 'dw') are missing and Append Mode is not correctly configured.
           No files matching the expected patterns were found in '{{ __sap_patching_kernel_source }}'.
           Expected file name patterns include:
           - 'SAPEXE_<patch>*.SAR'
@@ -101,11 +92,11 @@
         - __sap_patching_register_kernel_exedw_files.matched | int == 0
         - not __sap_patching_kernel_append_mode
 
-    - name: SAP Patching - Kernel - Prepare - Fail if append mode is enabled and SAPEXE/dw SAR files are found
+    - name: SAP Patching - Kernel - Prepare - Fail if append mode is enabled and 'SAPEXE' or 'dw' SAR files are found
       ansible.builtin.fail:
         msg: |
           FAIL: Conflict detected between Core SAR files and Append Mode configuration.
-          Core Kernel SAR files (SAPEXE/SAPEXEDB/dw) were found in '{{ __sap_patching_kernel_source }}',
+          Core Kernel SAR files ('SAPEXE', 'SAPEXEDB', 'dw') were found in '{{ __sap_patching_kernel_source }}',
           but 'sap_patching_kernel_prepare_append_to_version' is also set.
 
           How to resolve this issue:

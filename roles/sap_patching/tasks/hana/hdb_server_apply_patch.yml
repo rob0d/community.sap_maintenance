@@ -8,14 +8,14 @@
         - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout"
       ansible.builtin.debug:
         msg:
-          - "Processing HANA DB server '{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}' on site '{{ _sap_patching_hdb_hsr_site[0] }}'"
+          - "Processing HANA DB server '{{ __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] }}' on site '{{ __sap_patching_hdb_hsr_site[0] }}'"
 
     # - name: Debug hosts
     #   ansible.builtin.debug:
     #     msg:
     #       - "Inventory hostname: {{ inventory_hostname }}"
     #       - "Inventory hostname short: {{ inventory_hostname_short }}"
-    #       - "Ansible hostname: {{ ansible_hostname }}"
+    #       - "Ansible hostname: {{ ansible_facts['hostname'] }}"
     #       - "Delegated to: {{ _sap_patching_delegated_to_host }}"
 
     - name: Set hdblcm action parameter based on update_mode
@@ -133,17 +133,17 @@
             #
                 #   source ~/.profile && HDBSettings.sh systemReplicationStatus.py | \
                 # awk -F '|' '/^this system/ {print} $9 ~ /{{ hostvars[inventory_hostname]['ansible_hostname'] }}/ {print $17}'
-                #__sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] == __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]]
+                #__sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] == __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]]
 
             - name: Check HSR replication state of replication target (using Python script) on master site
               delegate_to: "{{ __sap_patching_fact_hdb_host_fqdn[__sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first]] }}"
               when:
                 - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate2.stdout"
                 - __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first] in ansible_play_hosts | map('split', '.') | map('first') | list
-                - __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] != __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]
+                - __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] != __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]
               ansible.builtin.shell: |
                 set -o pipefail && source ~/.profile && HDBSettings.sh systemReplicationStatus.py | \
-                awk -F '|' '/^this system/ {print} $9 ~ /{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}/ {print $17}'
+                awk -F '|' '/^this system/ {print} $9 ~ /{{ __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] }}/ {print $17}'
               args:
                 executable: /bin/bash
               register: __sap_patching_register_hdb_hsr_srstatus_target
@@ -163,10 +163,10 @@
               when:
                 - "'mode=none' not in __sap_patching_register_hdb_hsr_srstate2.stdout"
                 - __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first] in ansible_play_hosts | map('split', '.') | map('first') | list
-                - __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] == __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]
+                - __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] == __sap_patching_fact_hdb_hsr_site_to_host2[__sap_patching_fact_hdb_hsr_sites2 | last | first ]
               ansible.builtin.shell: |
                 set -o pipefail && source ~/.profile && HDBSettings.sh systemReplicationStatus.py | \
-                awk -F '|' '/^this system/ {print} $3 ~ /{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}/ {print $17}'
+                awk -F '|' '/^this system/ {print} $3 ~ /{{ __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] }}/ {print $17}'
               args:
                 executable: /bin/bash
               register: _sap_patching_hdb_hsr_srstatus_master

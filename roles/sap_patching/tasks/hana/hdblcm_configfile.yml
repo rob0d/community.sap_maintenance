@@ -1,41 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-# Credit where credit is due: This file was originally copied and modified from the sap_hana_install role
-- name: Get hdblcm git hash version
-  ansible.builtin.shell: |
-    set -o pipefail && {{ sap_patching_hdb_server_to_apply }}/hdblcm --version | grep GitHash | \
-    awk -F ':' '{print $2}' | tr -d '[:blank:]'
-  register: __sap_patching_register_hdb_hdblcm_git_hash_version
-  failed_when: __sap_patching_register_hdb_hdblcm_git_hash_version.rc != 0 or __sap_patching_register_hdb_hdblcm_git_hash_version.stdout | length == 0
+
+# This task file was inspired by the Ansible Role 'community.sap_install.sap_hana_install'.
+
+- name: SAP Patching - hdblcm configfile - Get hdblcm version output
+  ansible.builtin.command:
+    cmd: "{{ sap_patching_hdb_server_to_apply }}/hdblcm --version"
+  register: __sap_patching_register_hdb_version_output
   changed_when: false
+  ignore_errors: true
 
-#We are delegating this whole section. To avoid issues with old Ansible versions we are not using hostvars[inventory_hostname]['ansible_hostname'] but our own variable.
-- name: Set config file location fact (HSR enabled)
-  when: "'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout"
+- name: SAP Patching - hdblcm configfile - Set fact with Git Hash of hdblcm version
   ansible.builtin.set_fact:
-    __sap_patching_fact_hdb_hdblcm_configfile: "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_register_hdb_hdblcm_git_hash_version.stdout }}/{{ __sap_patching_fact_hdb_hsr_site_to_host[_sap_patching_hdb_hsr_site[0]] }}_hdblcm_configfile.cfg"
+    __sap_patching_fact_hdb_hdblcm_git_hash_version: >-
+      {{ (__sap_patching_register_hdb_version_output.stdout_lines | d([])) |
+        select('match', '^GitHash\s*:\s*') |
+        map('split', ':') | map('last') | map('trim') | first | d('', true) }}
 
-- name: Set config file location fact (non-HSR)
-  when: "'mode=none' in __sap_patching_register_hdb_hsr_srstate.stdout"
+- name: SAP Patching - hdblcm configfile - Fail if Git Hash of hdblcm version could not be determined
+  ansible.builtin.fail:
+    msg: |
+      FAIL: Could not determine Git Hash of hdblcm version from command output.
+      Command Output: {{ __sap_patching_register_hdb_version_output.stdout }}
+  when:
+    - __sap_patching_register_hdb_version_output.rc != 0
+      or __sap_patching_fact_hdb_hdblcm_git_hash_version | trim | length == 0
+
+
+# We are delegating this whole section.
+# To avoid issues with old Ansible versions we are not using hostvars[inventory_hostname]["ansible_facts['hostname']"] but our own variable.
+- name: SAP Patching - hdblcm configfile - Set fact with config file location
   ansible.builtin.set_fact:
-    __sap_patching_fact_hdb_hdblcm_configfile: "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_register_hdb_hdblcm_git_hash_version.stdout }}/{{ ansible_hostname }}_hdblcm_configfile.cfg"
+    __sap_patching_fact_hdb_hdblcm_configfile:
+      "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_fact_hdb_hdblcm_git_hash_version }}/{{ __file_name }}"
+    __sap_patching_fact_hdb_hdblcm_configfile_dir:
+      "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_fact_hdb_hdblcm_git_hash_version }}"
+  vars:
+    __file_name: >-
+      {{ __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] ~ '_hdblcm_configfile.cfg'
+        if 'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout | d('')
+        else ansible_facts['hostname'] ~ '_hdblcm_configfile.cfg' }}
 
 
-- name: Create the hdblcm configfile directory '{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_register_hdb_hdblcm_git_hash_version.stdout }}'
+- name: SAP Patching - hdblcm configfile - Create the hdblcm configfile directory '{{ __sap_patching_fact_hdb_hdblcm_configfile_dir }}'
   ansible.builtin.file:
-    path: "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_register_hdb_hdblcm_git_hash_version.stdout }}"
+    path: "{{ __sap_patching_fact_hdb_hdblcm_configfile_dir }}"
     state: directory
     mode: '0755'
 
-- name: Check if file '{{ __sap_patching_fact_hdb_hdblcm_configfile }}' exists
+- name: SAP Patching - hdblcm configfile - Stat availability of the hdblcm configfile '{{ __sap_patching_fact_hdb_hdblcm_configfile }}'
   ansible.builtin.stat:
     path: "{{ __sap_patching_fact_hdb_hdblcm_configfile }}"
-  check_mode: no
+  check_mode: false
   register: __sap_patching_register_hdb_hdblcm_configfile_stat
 
-- name: Notify if hdblcm configfile exists
+- name: SAP Patching - hdblcm configfile - Inform what hdblcm configfile will be used
   ansible.builtin.debug:
-    msg: "INFO: Using existing static hdblcm configfile '{{ __sap_patching_fact_hdb_hdblcm_configfile }}'."
-  when: __sap_patching_register_hdb_hdblcm_configfile_stat.stat.exists
+    msg: |
+      {% if __sap_patching_register_hdb_hdblcm_configfile_stat.stat.exists %}
+      INFO: Existing hdblcm configfile will be used: '{{ __sap_patching_fact_hdb_hdblcm_configfile }}'."
+      {% else %}
+      INFO: No existing hdblcm configfile found. A new one will be created at '{{ __sap_patching_fact_hdb_hdblcm_configfile }}'."
+      {% endif %}
+
 
   # - name: SAP HANA Pre Install - Make the existing static hdblcm configfile available for the SAP HANA installation
   #   ansible.builtin.copy:
@@ -47,65 +74,74 @@
   #     mode: '0755'
   #   when: __sap_patching_register_hdb_hdblcm_configfile_stat.stat.exists
 
-- name: Create the hdblcm configfile dynamically
+- name: Block to create the hdblcm configfile dynamically
   when: not __sap_patching_register_hdb_hdblcm_configfile_stat.stat.exists
   block:
 
-    - name: Create the hdblcm configfile template '{{ __sap_patching_fact_hdb_hdblcm_configfile }}.template'
-      ansible.builtin.command: "{{ sap_patching_hdb_server_to_apply }}/hdblcm --dump_configfile_template={{ __sap_patching_fact_hdb_hdblcm_configfile }}.template"
-      register: __sap_patching_register_hdb_hdblcm_configfile_template_create
-      changed_when: no
+    - name: SAP Patching - hdblcm configfile - Create the hdblcm configfile template '{{ __sap_patching_fact_hdb_hdblcm_configfile ~ '.template' }}'
+      ansible.builtin.command:
+        cmd: >-
+          {{ sap_patching_hdb_server_to_apply }}/hdblcm
+          --dump_configfile_template={{ __sap_patching_fact_hdb_hdblcm_configfile }}.template
+      register: __sap_patching_register_hdb_hdblcm_configfile_template
+      changed_when: false
 
-    - name: Display the output of the hdblcm command
+    - name: SAP Patching - hdblcm configfile - Display the output of the hdblcm command
       ansible.builtin.debug:
-        msg: "Output of hdblcm command: {{ __sap_patching_register_hdb_hdblcm_configfile_template_create.stdout_lines }}"
+        msg: |
+          INFO: Output of hdblcm command:
+          {{ __sap_patching_register_hdb_hdblcm_configfile_template.stdout_lines }}
+        verbosity: 2
 
-# The following task creates a Jinja2 template from the hdblcm configfile template. This Jinja2 template is later used to
-# create the final hdblcm configfile. The task below works as follows:
-# - At the beginning, some header lines are created so that it is easy to identify how the template, and later the hdblcm configfile,
-#   had been created.
-# - Each line from the hdblcm configfile template not starting with [a-z], that is each empty line and each line starting with a comment,
-#   is just put into the Jinja2 template unmodified.
-# - Each line from the hdblcm configfile template starting with [a-z], that is each line containing an hdblcm variable, is processed
-#   as follows:
-#   - The original hdblbm parameter is printed, followed by the string "={{ sap_patching_hdb_server_cf_", followed by the hdblcm parameter again,
-#     then followed by " | d('" (meaning the Jinja2 'default' filter), followed by any default which might be present in the
-#     hdblcm configfile template, followed by "') }}". By this, we achieve the following:
-#     1) If a role variable for the hdblcm configfile is set in the playbook or inventory (e.g. "sap_patching_hdb_server_cf_max_mem"), its value
-#        will be used to override the corresponding hdblcm configfile parameter (e.g. "max_mem").
-#     2) If a role variable for the hdblcm configfile is not set in the playbook or inventory, either the default value which is set
-#        in the hdblcm configfile template will be used, or an empty string.
-    - name: Create a Jinja2 template from the hdblcm configfile template
-      ansible.builtin.shell: |
-        set -o pipefail &&
-        awk 'BEGIN{FS="="; printf ("\{\{ ansible_managed | comment \}\}\n# File created on: \{\{ template_host \}\}\n# Template file:   \{\{ template_path \}\}\n#\n")}
-          !/^[a-z]/{print}
-          /^[a-z]/{printf ("%s=\{\{ sap_patching_hdb_server_cf_%s | d(\047%s\047) \}\}\n", $1, $1, $2)}' {{ __sap_patching_fact_hdb_hdblcm_configfile }}.template > {{ __sap_patching_fact_hdb_hdblcm_configfile }}.j2
-      register: __sap_patching_register_hdb_create_jinja2_template
-      changed_when: no
 
-    - name: Display the location of the remote Jinja2 template
+    - name: SAP Patching - hdblcm configfile - Read generated hdblcm configfile template
+      ansible.builtin.slurp:
+        src: "{{ __sap_patching_fact_hdb_hdblcm_configfile }}.template"
+      register: __sap_patching_register_hdb_hdblcm_configfile_template_slurp
+
+    # This task parses the original .template file line-by-line to dynamically
+    # generate a .j2 template. This generated template is later used to deploy
+    # the final hdblcm configuration file.
+    # - Any line NOT starting with [a-z] is written to the .j2 template completely
+    #   unmodified, preserving the original formatting and comments.
+    # - Transforms lines containing hdblcm variables into dynamic Jinja2 syntax:
+    #   Format: <parameter>={{ sap_patching_hdb_server_cf_<parameter> | d('<default>') }}
+    - name: SAP Patching - hdblcm configfile - Create a Jinja2 template from the hdblcm configfile template
+      ansible.builtin.copy:
+        dest: "{{ __sap_patching_fact_hdb_hdblcm_configfile }}.j2"
+        content: |
+          # Managed by the Ansible Role 'sap_patching'.
+          #
+          {% for line in (__sap_patching_register_hdb_hdblcm_configfile_template_slurp.content | b64decode).splitlines() %}
+          {% if line is match('^[a-z]') %}
+          {% set parts = line.split('=', 1) %}
+          {{ parts[0] }}={{ '{{' }} sap_patching_hdb_server_cf_{{ parts[0] | trim }} | d('{{ parts[1] | d('') | trim }}') {{ '}}' }}
+          {% else %}
+          {{ line }}
+          {% endif %}
+          {% endfor %}
+        mode: '0644'
+
+    - name: SAP Patching - hdblcm configfile - Inform where the hdblcm configfile template has been created
       ansible.builtin.debug:
-        msg: "The Jinja2 template for creating the hdblcm configfile has been saved to '{{ __sap_patching_fact_hdb_hdblcm_configfile }}.j2'."
+        msg: |
+          INFO: The hdblcm configfile template has been created at: '{{ __sap_patching_fact_hdb_hdblcm_configfile }}.j2'
+        verbosity: 2
 
-    - name: Download the Jinja2 template
+    - name: SAP Patching - hdblcm configfile - Fetch jinja2 template from managed host to control node
       ansible.builtin.fetch:
         src: "{{ __sap_patching_fact_hdb_hdblcm_configfile }}.j2"
         dest: "/tmp/"
-      register: __sap_patching_hdb_register_fetch_hdblcm_configfile_jinja2_template
+      register: __sap_patching_hdb_register_fetch_jinja2_template
 
-      # - name: SAP HANA Pre Install - Display the location of the local Jinja2 template
-      #   ansible.builtin.debug:
-      #     msg: "The Jinja2 template has been downloaded to '{{ __sap_patching_hdb_register_fetch_hdblcm_configfile_jinja2_template.dest }}'"
-      #   when: not ansible_check_mode
-
-    - name: Process the Jinja2 template to create the hdblcm configfile
+    - name: SAP Patching - hdblcm configfile - Generate hdblcm configfile using jinja2 template
       ansible.builtin.template:
-        src: "{{ __sap_patching_hdb_register_fetch_hdblcm_configfile_jinja2_template.dest }}"
+        src: "{{ __sap_patching_hdb_register_fetch_jinja2_template.dest }}"
         dest: "{{ __sap_patching_fact_hdb_hdblcm_configfile }}"
         mode: '0644'
 
 
-- name: Display the path name of the hdblcm configfile
+- name: SAP Patching - hdblcm configfile - Display the path name of the hdblcm configfile
   ansible.builtin.debug:
-    msg: "The hdblcm configfile is: '{{ __sap_patching_fact_hdb_hdblcm_configfile }}'"
+    msg: |
+      INFO: The hdblcm configfile is: '{{ __sap_patching_fact_hdb_hdblcm_configfile }}'"

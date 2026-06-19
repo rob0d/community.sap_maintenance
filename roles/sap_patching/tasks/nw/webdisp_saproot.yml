@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-# Update internal variables as xnw_kernel_saproot is shared with kernel.
-- name: SAP Patching - Web Dispatcher - Saproot - Set fact with tasks specific variables
+# Update variables to pass into shared tasks.
+- name: SAP Patching - Web Dispatcher - Saproot - Set fact with 'webdisp' specific variables
   ansible.builtin.set_fact:
     __sap_patching_fact_sap_system_sid: "{{ sap_patching_wdp_system_sid | upper }}"
     __sap_patching_fact_sidadm_user: "{{ sap_patching_wdp_system_sid | lower }}adm"
 
-- name: SAP Patching - Web Dispatcher - Saproot - Execute saproot function to set correct permissions
+- name: SAP Patching - Web Dispatcher - Saproot - Execute shared tasks for kernel saproot
   ansible.builtin.include_tasks:
-    file: xnw_kernel_saproot.yml
+    file: shared_kernel_saproot.yml

@@ -2,191 +2,266 @@
 ---
 
 ####################        General settings        ####################
-# This drives what actions this role takes and in what order
+# The list of tasks that will be executed by this role in the specific order (String).
+# Available options:
+# - Kernel: abap_kernel_prepare, abap_kernel_apply, abap_kernel_restart
+# - HDB Client: hdb_client_prepare, hdb_client_apply
+# - HDB Server: hdb_server_prepare, hdb_server_apply, hdb_server_update_prepare, hdb_server_update_resume
+# - Host Agent: host_agent_prepare, host_agent_apply_auto, host_agent_apply_manual
+# - Web Dispatcher: webdisp_prepare, webdisp_apply, webdisp_restart
+# - ABAP Start Stop: abap_stop_system, abap_start_system
 sap_patching_execution_plan: []
 
 #### SAP system definitions ####
-# SAP System SID
+# The SAP System ID (SID) (String).
 # NOTE: In case of using database with different SID, use 'sap_patching_hdb_system_sid' to define HANA SID.
 sap_patching_sap_system_sid: ''
 
-# SAPCAR information
+# The path to directory where SAPCAR executable is located (String).
 sap_patching_sapcar_path: "/install"
+
+# The name of the SAPCAR executable file (String).
 sap_patching_sapcar_file_name: SAPCAR.EXE
 
-# User which owns all extracted files, typically <sid>adm or some kind of common shared user on NFS share
+# The name of operating system user which owns all extracted files (String).
+# Defaults to '<sid>adm' user and can be changed to shared user if NFS share is used.
 # If the prepare (extraction) is executed on the controller node and <sid>adm is not available, root can be used
 sap_patching_file_owner: "{{ sap_patching_sap_system_sid | lower }}adm"
-# Same as owner above, just for a group. Default is sapsys.
+
+# The name of operating system group which owns all extracted files (String).
+# Defaults to 'sapsys' group.
 sap_patching_file_group: sapsys
 
 
 ####################    Kernel patching settings    ####################
-# Base kernel directory where the kernel SP directories are created
-sap_patching_kernel_base: /install/kernel
-# Directory where the SAR files are located (used during the prepare step)
-sap_patching_kernel_source: "{{ sap_patching_kernel_base }}/source"
+# The path to base kernel directory where version specific kernel directories will be created during the prepare step (String).
+# Used when 'sap_patching_kernel_files_on_target' is set to 'true'.
+# If 'sap_patching_kernel_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_kernel_base: ''  # e.g. /install/kernel
 
-# What kernel version are we extracting from SAR files - set to 'autodetect' to use disp+work to determine the extracted kernel version and patch number.
-# If for some reason you don't want (or can't) use autodetection, set this a specific kernel version e.g. 793 (format is `<NNN>` where N is a number).
+# The path to directory where the kernel files are located on managed nodes (String).
+# Used when 'sap_patching_kernel_files_on_target' is set to 'true'.
+# If 'sap_patching_kernel_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_kernel_source: ''  # e.g. "/install/kernel/source"
+
+# The path to directory where the kernel files are located on Control node (localhost) (String).
+# Used when 'sap_patching_kernel_files_on_target' is set to 'false'.
+# Kernel files will be copied from this path on the control node to 'sap_patching_kernel_source' on the managed nodes during prepare step.
+sap_patching_kernel_source_local: ''  # e.g. "/install/kernel/source"
+
+# The name of kernel release version to use during preparation (String).
+# Defaults to 'autodetect', which will detect version from extracted 'disp+work' file.
+# Alternative: specify exact kernel version e.g. '793' (format: '<NNN>' where N is a number).
 # The kernel patch will be determined from the name of the SAR files.
 sap_patching_kernel_prepare_version: autodetect
 
-# To be used when not patching dw or SAPEXE e.g. when adding extra patch like R3trans to existing kernel patch
-# Format is <kernel_version>p<patch_number> e.g. 793p320
-sap_patching_kernel_prepare_append_to_version: ''
-
-# Either relative (to sap_patching_kernel_base) or absolute path to the kernel which will be applied
-# If not set, sap_patching_kernel_to_apply_symlink will be used
-# abap_kernel_prepare task will set this if it was executed and kernel was extracted
+# The name of directory either relative (to sap_patching_kernel_base) or absolute path to the kernel (String).
+# If not set, the task 'abap_kernel_prepare' will populate correct directory,
+# or fall back to 'sap_patching_kernel_to_apply_symlink'.
 sap_patching_kernel_to_apply: ''
 
-# If true, the kernel source SAR files are expected to be present on the local host (e.g. NFS share)
-# If false, the kernel source SAR files will be copied from the Ansible controller to the target host
-sap_patching_kernel_extracted_shared: true
+# Select whether the kernel files are already present on the managed nodes (Boolean).
+# If 'true', the kernel files are already on managed nodes (e.g., pre-staged to NFS or local disk)
+#   and the prepare step will verify files exist and extract them in place.
+# If 'false', the kernel files are on the control node and must be copied to managed nodes
+#   and the prepare step will copy files from 'sap_patching_kernel_source_local' to managed nodes.
+sap_patching_kernel_files_on_target: true
 
-# How is the ABAP system restarted after kernel patching
-# Options are:  'all' - restart the whole system including SapStartService,
-#               'rks' - restart using Rolling Kernel Switch (RKS),
-#               'bootstrap' - restart only sapstartsrv and run sapcpe
+# Select whether the kernel files will be shared among multiple hosts (Boolean).
+# If 'true', the kernel files will copied and extracted only once, because target host is expected to be shared.
+# If 'false', the kernel files will copied and extracted on all target hosts separately.
+# NOTE: Existing shared filesystem is expected to be present and accessible by all hosts if 'true'.
+sap_patching_kernel_files_shared: true
+
+# The name of restart strategy during kernel patching (String).
+# Options:
+# - 'all' - Restart the whole system including SapStartService
+# - 'rks' - Restart using Rolling Kernel Switch (RKS)
+# - 'bootstrap' - Restart only sapstartsrv and run sapcpe
+# NOTE: Ensure that your SAP System is compatible with RKS. If not, use 'all' strategy.
 sap_patching_kernel_restart_strategy: rks
+
+## Append-to mode variables:
+# The name of kernel release and patch to apply in format '<kernel_version>p<patch_number>' e.g. 793p320 (String).
+# To be used when not patching dw or SAPEXE e.g. when adding extra patch like R3trans to existing kernel patch
+sap_patching_kernel_prepare_append_to_version: ''
 
 
 ####################   HDB client patching settings   ####################
-# Base HDB client directory where the HDB client SAR file are stored and extraction directories are created
+# The path to base HDB client directory where extraction directories will be created during the prepare step (String).
 sap_patching_hdb_client_base: /install/hanadb/client
-# Directory where the SAR files are located (used during the prepare step)
+
+# The path to directory where the HDB client SAR files are located (String).
 sap_patching_hdb_client_source: "{{ sap_patching_hdb_client_base }}/source"
 
-# Either relative (to sap_patching_hdb_client_base) or absolute path to the hdb_client which will be applied
-# If not set, sap_patching_hdb_client_to_apply_symlink will be used
-# abap_hdb_client_prepare task will set this if it was executed and hdb_client was extracted
+# The name of directory either relative (to sap_patching_hdb_client_base) or absolute path to the HDB client (String).
+# If not set, the task 'abap_hdb_client_prepare' will populate correct directory,
+# or fall back to 'sap_patching_hdb_client_to_apply_symlink'.
 sap_patching_hdb_client_to_apply: ''
 
-# If using individual client installation - installation path of the HDB client (used for --path option of hdbinst)
-# **mutually exclusive with sap_patching_hdb_client_shared_path**
-sap_patching_hdb_client_install_path: "{{
-  '/usr/sap/' +  sap_patching_sap_system_sid | upper  + '/hdbclient'
-  if not (sap_patching_hdb_client_shared_path | d('', true) | length > 0) }}"
+# Then path to HDB client directory which will be applied for specific installation (String).
+# This is used if specific client installation is being updated, instead of shared installation.
+# Sets '--path' parameter for 'hdbinst' command.
+# NOTE: Mutually exclusive with 'sap_patching_hdb_client_shared_path', if both are set, the playbook will fail.
+sap_patching_hdb_client_install_path:
+  "{{ '/usr/sap/' + sap_patching_sap_system_sid | upper + '/hdbclient' }}"
 
-# If using shared client installation - path to the shared directory  (used for --sapmnt option of hdbinst)
-# **mutually exclusive with sap_patching_hdb_client_install_path**
+# Then path to HDB client directory which will be applied for shared installation (String).
+# This is used if shared client installation is being updated, instead of individual installation.
+# Sets '--sapmnt' parameter for 'hdbinst' command.
+# NOTE: Mutually exclusive with 'sap_patching_hdb_client_install_path', if both are set, the playbook will fail.
 sap_patching_hdb_client_shared_path: ''
 
+# >>> TODO NEED TO DECIDE ON HOW TO HANDLE IT <<<
+# Set which source SAR file location type is used (Boolean).
 # If true, the extracted HDB client source files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
-# If false, the extracted HDB client source files will be copied from the Ansible controller to the target host
+# If false, the extracted HDB client source files will be copied from the control node to the managed node.
 sap_patching_hdb_client_extracted_shared: true
 
-# Where to store a local copy of extracted HDB client files as they must be present locally in order to run hdbinst
+# The path to directory where a local copy of extracted HDB client files will be stored (String).
+# These files must be present locally in order to run hdbinst.
 sap_patching_hdb_client_extracted_local_path: /install-local/hanadb/client
 
 
 ####################   HDB server patching settings   ####################
-# HANA DB platform System SID
+# The SAP HANA Database System ID (SID) (String).
+# NOTE: Must be set if using database with different SID than 'sap_patching_sap_system_sid'.
 sap_patching_hdb_system_sid: ''
 
-# Base HDB server directory where the HDB server SAR file are stored and extraction directories are created
+# The path to base HDB server directory where extraction directories will be created during the prepare step (String).
 sap_patching_hdb_server_base: /install/hanadb/server
-# Directory where the SAR files are located (used during the prepare step)
+
+# The path to directory where the HDB server SAR files are located (String).
 sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
 
-# Either relative (to sap_patching_hdb_server_base) or absolute path to the hdb_server which will be applied
-# If not set, sap_patching_hdb_server_to_apply_symlink will be used
-# abap_hdb_server_prepare task will set this if it was executed and hdb_server was extracted
+# The name of directory either relative (to sap_patching_hdb_server_base) or absolute path to the HDB server (String).
+# If not set, the task 'abap_hdb_server_prepare' will populate correct directory,
+# or fall back to 'sap_patching_hdb_server_to_apply_symlink'.
 sap_patching_hdb_server_to_apply: ''
 
-# Installation path of the HDB server (used to check the existing installation).
-# Unless you have a weird non-standard installation, there is no need to set this variable.
-sap_patching_hdb_server_install_path: "{{ '/usr/sap/' + sap_patching_hdb_system_sid | upper + '/SYS/exe/hdb' }}"
+# The path to HDB server installation (String).
+# Defaults to '/usr/sap/<SID>/SYS/exe/hdb' which is the default installation path for HDB server.
+sap_patching_hdb_server_install_path:
+  "{{ '/usr/sap/' + sap_patching_hdb_system_sid | upper + '/SYS/exe/hdb' }}"
 
-# If set the specified user will be used to perform the update.
-# READ the documentation here: https://help.sap.com/docs/SAP_HANA_PLATFORM/2c1988d620e04368aa4103bf26f17727/df3de8c31cef45c0847d2804b97604ea.html
-# to understand the implications of using this option (XSA update does not work with this option for example).
-sap_patching_hdb_server_system_user: ''
+# The name of database user to use for patching (String).
+# This is parameter in hdblcm configfile template.
+# Documentation: https://help.sap.com/docs/SAP_HANA_PLATFORM/2c1988d620e04368aa4103bf26f17727/df3de8c31cef45c0847d2804b97604ea.html
+# NOTE: See documentation for limitations like XSA update not working with this option.
+# sap_patching_hdb_server_cf_system_user: ''
 
-# Password for the HANA user used to perform the update (this is the SYSTEM user unless defined otherwise in sap_patching_hdb_server_system_user)
-sap_patching_hdb_server_cf_system_user_password: ''
+# The password of database user defined in 'sap_patching_hdb_server_cf_system_user' to use for patching (String).
+# This is parameter in hdblcm configfile template.
+# Documentation: https://help.sap.com/docs/SAP_HANA_PLATFORM/2c1988d620e04368aa4103bf26f17727/df3de8c31cef45c0847d2804b97604ea.html
+# NOTE: See documentation for limitations like XSA update not working with this option.
+# sap_patching_hdb_server_cf_system_user_password: ''
 
-# If set to true, the system user (SYSTEM) will be activated prior to patching
-# If set to false or not set, no action will be taken
+## User activation variables
+# Set to 'true' if system user (SYSTEM) needs to be activated prior to patching (Boolean).
 sap_patching_hdb_server_activate_system_user: true
-# HANA admin user store key (hdbuserstore) to use when activating the SYSTEM user
-# If not set, sap_patching_hdb_server_activate_admin_user and sap_patching_hdb_server_activate_admin_password will be used instead
+
+# The name of SAP HANA admin user store key (hdbuserstore) to use when activating the SYSTEM user (String).
+# If not set, falls back to 'sap_patching_hdb_server_activate_admin_user' and 'sap_patching_hdb_server_activate_admin_password'.
 sap_patching_hdb_server_activate_admin_userstore_key: ''
-# HANA admin user to use when activating the SYSTEM user
+
+# The name of SAP HANA admin user to use when activating the SYSTEM user (String).
 sap_patching_hdb_server_activate_admin_user: ''
-# Password of the HANA admin user used when activating the SYSTEM user
+
+# The password of the 'sap_patching_hdb_server_activate_admin_user' user used when activating the SYSTEM user (String).
 sap_patching_hdb_server_activate_admin_password: ''
 
-# If the database is clustered (currently only Redhat/Suse with Pacemaker are supported), set this to true.
+# Set to 'true' if the database is clustered (currently only Redhat/Suse with Pacemaker are supported), set this to true.
+# Cluster steps are available for: Red Hat (pcs), SUSE (crmsh).
 sap_patching_hdb_server_is_clustered: false
 
-# Name of the cluster resource for HDB server (used to relocate and put the resource in maintenance mode during patching).
-# If SAP LinuxLab role `sap_ha_pacemaker_cluster` was used to setup the cluster AND HANA instance number is 00,
-# this doesn't need to be set as the default value matches the naming convention used by the role.
-sap_patching_hdb_server_clu_hdb_resource_name: "cln_SAPHana_{{ sap_patching_hdb_system_sid | upper }}_HDB00"
+# The name of cluster resource for HDB server that will be managed by this role (String).
+# Examples for SID 'H01' and instance number '90':
+# - Clone for 'SAPHanaController' resource agent in SAPHanaSR-angi cluster.
+#   - SUSE: 'mst_SAPHanaCon_H01_HDB90'
+#   - Red Hat: 'cln_SAPHanaCon_H01_HDB90'
+# - Clone for 'SAPHana' resource agent in SAPHanaSR classic cloud.
+#   - SUSE: 'mls_SAPHana_H01_HDB90'
+#   - Red Hat: 'cln_SAPHana_H01_HDB90'
+# Default value belongs to 'SAPHanaSR-angi' version with instance number '00',
+# because this role does not use instance number variable.
+sap_patching_hdb_server_clu_hdb_resource_name:
+  "cln_SAPHanaCon_{{ sap_patching_hdb_system_sid | upper }}_HDB00"
 
+# >>> TODO NEED TO DECIDE ON HOW TO HANDLE IT <<<
+# Set which source SAR file location type is used (Boolean).
 # If true, the extracted HDB server source files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
 # If false, the extracted HDB server source files will be copied from the Ansible controller to the target host
 sap_patching_hdb_server_extracted_shared: true
 
-# Where to store a local copy of extracted HDB server files as they must be present locally in order to run hdbinst/hdblcm
+# The path to directory where a local copy of extracted HDB server files will be stored (String).
+# These files must be present locally in order to run hdbinst.
 sap_patching_hdb_server_extracted_local_path: /install-local/hanadb/server
 
 
 ####################   Host agent patching settings   ####################
-# See: https://help.sap.com/docs/host-agent/sap-host-agent-doc/sap-host-agent-upgrade?locale=en-US
-# Base host agent directory where the host agent SAR file are stored and extraction directories are created
+# Documentation: https://help.sap.com/docs/host-agent/sap-host-agent-doc/sap-host-agent-upgrade?locale=en-US
+
+# The path to base host agent directory where extraction directories will be created during the prepare step (String).
 sap_patching_host_agent_base: /install/hostagents
-# Directory where the SAR files are located (used during the prepare step)
+
+# The path to directory where the host agent SAR files are located (String).
 sap_patching_host_agent_source: "{{ sap_patching_host_agent_base }}/source"
 
-# Either relative (to sap_patching_host_agent_base) or absolute path to the host_agent which will be applied
-# If not set, sap_patching_host_agent_to_apply_symlink will be used
-# abap_host_agent_prepare task will set this if it was executed and host_agent was extracted
+# The name of directory either relative (to sap_patching_host_agent_base) or absolute path to the host agent (String).
+# If not set, the task 'abap_host_agent_prepare' will populate correct directory,
+# or fall back to 'sap_patching_host_agent_to_apply_symlink'.
 sap_patching_host_agent_to_apply: ''
 
-# If host agent autoupdate is configured (https://me.sap.com/notes/1473974) this is the path where it's looking for updates (parameter DIR_NEW in host_profile)
+# The path to directory where host agent installation is located when using 'autoupdate' (String).
+# If host agent autoupdate is configured (https://me.sap.com/notes/1473974)
+# this is the path where it's looking for updates (parameter DIR_NEW in host_profile).
 sap_patching_host_agent_autoupdate_path: /install/HostAgentUpdateDir
 
+# >>> TODO NEED TO DECIDE ON HOW TO HANDLE IT <<<
+# Set which source SAR file location type is used (Boolean).
 # If true, the extracted host agent files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
 # If false, the extracted host agent files will be copied from the Ansible controller to the target host
 sap_patching_host_agent_extracted_shared: true
 
-# Where to store a local copy of extracted host agent files as they must be present locally in order to run saphostexec.
-# This only applies to manual agent update.
+# The path to directory where a local copy of extracted host agent files will be stored (String).
+# These files must be present locally in order to run saphostexec.
 sap_patching_host_agent_extracted_local_path: /install-local/hostagents
 
 
 ####################   Web disp patching settings   ####################
-# Web disp SID
+# SAP Web Dispatcher System ID (SID) (String).
 sap_patching_wdp_system_sid: ''
 
-# Base web disp directory where the web disp SAR file are stored and extraction directories are created
+# The path to base web dispatcher directory where extraction directories will be created during the prepare step (String).
 sap_patching_webdisp_base: /install/webdisp
-# Directory where the SAR files are located (used during the prepare step)
+
+# The path to directory where the web dispatcher SAR files are located (String).
 sap_patching_webdisp_source: "{{ sap_patching_webdisp_base }}/source"
 
-# Either relative (to sap_patching_webdisp_base) or absolute path to the webdisp which will be applied
-# If not set, sap_patching_webdisp_to_apply_symlink will be used
-# abap_webdisp_prepare task will set this if it was executed and webdisp was extracted
+# The name of directory either relative (to sap_patching_webdisp_base) or absolute path to the web dispatcher (String).
+# If not set, the task 'abap_webdisp_prepare' will populate correct directory,
+# or fall back to 'sap_patching_webdisp_to_apply_symlink'.
 sap_patching_webdisp_to_apply: ''
 
+# >>> TODO NEED TO DECIDE ON HOW TO HANDLE IT <<<
+# Set which source SAR file location type is used (Boolean).
 # If true, the extracted web disp files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
 # If false, the extracted web disp files will be copied from the Ansible controller to the target host
 sap_patching_webdisp_extracted_shared: true
 
 
-########################################################
-# Generally no need to change anything below this line #
-# Unless you know what you are doing ...               #
-########################################################
+###################   Optional fine tuning variables   ###################
+# Changing following variables is generally not recommended as they are set to optimal values for most use cases.
+# Change only if you know what you are doing and have specific reason to do so.
 
-# RKS timeout parameters in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
+## Rolling Kernel Switch (RKS) parameters
+# See https://help.sap.com/docs/ABAP_PLATFORM_NEW/1ba3197c1aa7489882770103e3a610dc/78cf5bf734c9419e82e7bac87daa7e60.html?locale=en-US
+# RKS start wait timeout in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
 sap_patching_kernel_rks_wait_timeout: 900
+# RKS soft shutdown timeout in seconds  - must be more than rdisp/shutdown/max_time (default is 3600 seconds)
 sap_patching_kernel_rks_soft_timeout: 3600
-# Optional override for UpdateSystem function, that must be used with caution,
-# because it can ignore RKS requirements.
+# Optional override for UpdateSystem function, that must be used with caution, because it can ignore RKS requirements.
+# Force mode is automatically used when HA is detected by sapcontrol.
 sap_patching_kernel_rks_force: false
 
 # Name of symbolic link to point to the folder to be used by the patching process

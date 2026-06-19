@@ -1,16 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-# Sanitation and checks
-- name: Set sap_patching_host_agent_to_apply to default if not defined or empty
-  ansible.builtin.set_fact:
-    sap_patching_host_agent_to_apply: "{{ sap_patching_host_agent_to_apply_symlink }}"
-  when: sap_patching_host_agent_to_apply is not defined or sap_patching_host_agent_to_apply | type_debug == "NoneType" or sap_patching_host_agent_to_apply | d() |  length == 0
 
-- name: Prepend sap_patching_host_agent_base if sap_patching_host_agent_to_apply is not an absolute path
+- name: SAP Patching - Host Agent - Apply - Set fact with host agent symlink if not specified to default if not defined or empty
   ansible.builtin.set_fact:
-    sap_patching_host_agent_to_apply: "{{ sap_patching_host_agent_base }}/{{ sap_patching_host_agent_to_apply }}"
-  when:
-    - sap_patching_host_agent_to_apply is defined
-    - not sap_patching_host_agent_to_apply.startswith('/')
+    __sap_patching_fact_host_agent_to_apply: >-
+      {{ sap_patching_host_agent_to_apply_symlink
+        if sap_patching_host_agent_to_apply | string | trim | length == 0
+        else sap_patching_host_agent_to_apply }}
+
+
+- name: SAP Patching - Host Agent - Apply - Set fact with updated host agent path if it is not an absolute path
+  ansible.builtin.set_fact:
+    __sap_patching_fact_host_agent_to_apply:
+      "{{ __sap_patching_host_agent_base }}/{{ __sap_patching_fact_host_agent_to_apply }}"
+  when: not __sap_patching_fact_host_agent_to_apply.startswith('/')
 
 # Local copy of extracted files if not on shared storage
 - name: Copy host agent to be applied to a local directory if not present on a shared one

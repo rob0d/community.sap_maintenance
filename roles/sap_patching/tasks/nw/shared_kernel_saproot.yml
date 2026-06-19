@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
+# Shared task file for both ABAP Kernel and Web Dispatcher Kernel patching.
+
 - name: SAP Patching - Kernel - Saproot - Stat availability of saproot.sh file
   ansible.builtin.stat:
     path: /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/run/saproot.sh

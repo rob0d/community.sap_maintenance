@@ -1,0 +1,127 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+
+# Shared task file for both ABAP Kernel and Web Dispatcher Kernel patching.
+
+- name: Block for base directory
+  run_once: "{{ __sap_patching_fact_kernel_files_shared }}"
+  block:
+    - name: SAP Patching - Kernel - Prepare - Stat availability of the base directory
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_fact_kernel_base }}"
+      register: __sap_patching_register_kernel_prepare_base_stat
+
+    - name: SAP Patching - Kernel - Prepare - Create base directory with user {{ sap_patching_file_owner }}
+      ansible.builtin.file:
+        path: "{{ __sap_patching_fact_kernel_base }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when: not __sap_patching_register_kernel_prepare_base_stat.stat.exists
+
+    - name: Block when directory exists
+      when: __sap_patching_register_kernel_prepare_base_stat.stat.exists
+      block:
+        - name: SAP Patching - Kernel - Prepare - Fail if base directory is not a directory
+          ansible.builtin.fail:
+            msg: |
+              FAIL: The path "{{ __sap_patching_fact_kernel_base }}" exists but it is not a directory.
+              {% if __sap_patching_fact_kernel_type == 'abap_kernel' %}
+              Please ensure that the path defined in the variable 'sap_patching_kernel_base' is a directory.
+              {% else %}
+              Please ensure that the path defined in the variable 'sap_patching_webdisp_base' is a directory.
+              {% endif %}
+          when: not (__sap_patching_register_kernel_prepare_base_stat.stat.exists
+                  and __sap_patching_register_kernel_prepare_base_stat.stat.isdir)
+
+        - name: SAP Patching - Kernel - Prepare - Stat base directory with user {{ sap_patching_file_owner }}
+          ansible.builtin.stat:
+            path: "{{ __sap_patching_fact_kernel_base }}"
+          register: __sap_patching_register_kernel_prepare_base_user_stat
+          # Stat with correct user to check permissions.
+          become: true
+          become_user: "{{ sap_patching_file_owner }}"
+
+        - name: SAP Patching - Kernel - Prepare - Fail if user cannot write to base directory
+          ansible.builtin.fail:
+            msg: |
+              FAIL: User '{{ sap_patching_file_owner }}' does not have write permissions
+              to the directory '{{ __sap_patching_fact_kernel_base }}'
+              {% if __sap_patching_fact_kernel_type == 'abap_kernel' %}
+              defined in the variable 'sap_patching_kernel_base'.
+              {% else %}
+              defined in the variable 'sap_patching_webdisp_base'.
+              {% endif %}
+
+              Ansible cannot create the symlink '{{ __sap_patching_fact_kernel_to_apply_symlink }}' without write access to this path.
+              Please check the directory permissions (chmod/chown).
+          when: not __sap_patching_register_kernel_prepare_base_user_stat.stat.writeable
+
+
+- name: Block for source directory
+  run_once: "{{ __sap_patching_fact_kernel_files_shared }}"
+  block:
+    - name: SAP Patching - Kernel - Prepare - Stat availability of the source directory
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_fact_kernel_source }}"
+      register: __sap_patching_register_kernel_prepare_source_stat
+
+    - name: SAP Patching - Kernel - Prepare - Create source directory with user {{ sap_patching_file_owner }}
+      ansible.builtin.file:
+        path: "{{ __sap_patching_fact_kernel_source }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when: not __sap_patching_register_kernel_prepare_source_stat.stat.exists
+
+    - name: SAP Patching - Kernel - Prepare - Fail if source directory is not a directory
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The path "{{ __sap_patching_fact_kernel_source }}" exists but it is not a directory.
+              {% if __sap_patching_fact_kernel_type == 'abap_kernel' %}
+              Please ensure that the path defined in the variable 'sap_patching_kernel_source' is a directory.
+              {% else %}
+              Please ensure that the path defined in the variable 'sap_patching_webdisp_source' is a directory.
+              {% endif %}
+      when: not (__sap_patching_register_kernel_prepare_source_stat.stat.exists
+              and __sap_patching_register_kernel_prepare_source_stat.stat.isdir)
+
+
+    - name: Block for local source directory
+      when: not sap_patching_kernel_files_on_target
+      block:
+        - name: SAP Patching - Kernel - Prepare - Stat availability of the local source directory
+          ansible.builtin.stat:
+            path: "{{ __sap_patching_fact_kernel_source_local }}"
+          delegate_to: localhost  # Stat should be executed on control node where the files are located
+          register: __sap_patching_register_kernel_source_local_stat
+
+        - name: SAP Patching - Kernel - Prepare - Fail if local source directory does not exist
+          ansible.builtin.fail:
+            msg: |
+              FAIL: The path "{{ __sap_patching_fact_kernel_source_local }}" does not exist or is not a directory.
+              Please ensure that the kernel source path is correct and accessible.
+          when: not (__sap_patching_register_kernel_source_local_stat.stat.exists
+                  and __sap_patching_register_kernel_source_local_stat.stat.isdir)
+
+        - name: SAP Patching - Kernel - Prepare - Copy source files from control node to managed node
+          ansible.builtin.copy:
+            src: "{{ __sap_patching_fact_kernel_source_local }}/"  # Trailing slash is required.
+            dest: "{{ __sap_patching_fact_kernel_source }}/"
+            remote_src: false  # Copy from control node
+            mode: '0755'
+            owner: "{{ sap_patching_file_owner }}"
+            group: "{{ sap_patching_file_group }}"
+
+
+# Search for kernel SAR files and extract support package number
+- name: SAP Patching - Kernel - Prepare - Find SAR files in the source directory (case-insensitive)
+  ansible.builtin.find:
+    paths: "{{ __sap_patching_fact_kernel_source }}"
+    patterns: "{{ __sap_patching_fact_kernel_find_patterns }}"
+    use_regex: true
+    file_type: file
+    recurse: false
+  register: __sap_patching_register_kernel_source_dir_content

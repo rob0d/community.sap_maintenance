@@ -1,20 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
+
 # Search for HDB client SAR files and extract support package number
-- name: Check if HDB client source directory contains .sar files (case-insensitive)
+- name: SAP Patching - HDB Server - Prepare - Find .sar files in the HDB server source directory (case-insensitive)
   ansible.builtin.find:
-    paths: "{{ sap_patching_hdb_server_source }}"
+    paths: "{{ __sap_patching_hdb_server_source }}"
     patterns: ['(?i)IMDB_SERVER.*\.SAR$']
     use_regex: true
     file_type: file
     recurse: false
   register: __sap_patching_register_hdb_server_source_dir_content
 
-# Only proceed if we've found some SAR files
-- name: Prepare HDB server files for patching if source directory contains SAR files
+
+- name: Block to execute only if SAR files were found
   when: __sap_patching_register_hdb_server_source_dir_content.matched | d(0) > 0
   block:
+
     # In case there are more than one SAR files, get the one with the highest version number
-    - name: Get the highest version of HDB server SAR file
+    - name: SAP Patching - HDB Server - Prepare - Set fact with the highest version of HDB server SAR file
       ansible.builtin.set_fact:
         __sap_patching_fact_hdb_server_sar: >-
           {{
@@ -26,81 +29,90 @@
             | last
           }}
 
-    - name: Extract the server version from SAR file
+    - name: SAP Patching - HDB Server - Prepare - Set fact with extracted server version from SAR file
       ansible.builtin.set_fact:
         __sap_patching_fact_hdb_server_version:
           "{{ __sap_patching_fact_hdb_server_sar | regex_search('(?i)IMDB_SERVER([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
 
-    - name: Set the target HDB server directory variable
+    - name: SAP Patching - HDB Server - Prepare - Set fact with the target HDB server directory
       ansible.builtin.set_fact:
         __sap_patching_fact_hdb_server_extract_target:
-          "{{ sap_patching_hdb_server_base }}/{{ __sap_patching_hdb_server_extracted }}_{{ __sap_patching_fact_hdb_server_version }}"
+          "{{ __sap_patching_hdb_server_base }}/{{ __sap_patching_hdb_server_extracted }}_{{ __sap_patching_fact_hdb_server_version }}"
 
-    - name: Create extraction target HDB server directory
+    - name: SAP Patching - HDB Server - Prepare - Create extraction target HDB server directory
       ansible.builtin.file:
         path: "{{ __sap_patching_fact_hdb_server_extract_target }}"
         state: directory
         mode: '0755'
         owner: "{{ sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
-      when:
-        - __sap_patching_fact_hdb_server_version != ''
+      when: __sap_patching_fact_hdb_server_version != ''
 
-    - name: Check target HDB server directory
+    - name: SAP Patching - HDB Server - Prepare - Stat availability of the target HDB server directory
       ansible.builtin.stat:
         path: "{{ __sap_patching_fact_hdb_server_extract_target }}"
       register: __sap_patching_register_hdb_server_extract_target_stat
 
-    - name: Assert that target HDB server directory exists and is a directory
-      ansible.builtin.assert:
-        that:
-          - __sap_patching_fact_hdb_server_extract_target is defined
-          - __sap_patching_register_hdb_server_extract_target_stat.stat.exists
-          - __sap_patching_register_hdb_server_extract_target_stat.stat.isdir
-        fail_msg: "Target HDB server directory '{{ __sap_patching_fact_hdb_server_extract_target }}' does not exist or is not a directory."
-        success_msg: "Target HDB server directory '{{ __sap_patching_fact_hdb_server_extract_target }}' exists and is a directory."
+    - name: SAP Patching - HDB Server - Prepare - Fail if target HDB server directory does not exist or is not a directory
+      ansible.builtin.fail:
+        msg: |
+          FAIL: Target HDB server directory '{{ __sap_patching_fact_hdb_server_extract_target }}' does not exist or is not a directory.
+      when: not (__sap_patching_register_hdb_server_extract_target_stat.stat.exists
+              and __sap_patching_register_hdb_server_extract_target_stat.stat.isdir)
 
-    # Use shell globbing to move file in case they are not in capitals as expected
-    - name: Move all files from {{ sap_patching_hdb_server_source }} to {{ sap_patching_hdb_server_base }}
-      ansible.builtin.shell: |
-        mv '{{ sap_patching_hdb_server_source }}'/[Ii][Mm][Dd][Bb]_[Ss][Ee][Rr][Vv][Ee][Rr]* '{{ sap_patching_hdb_server_base }}'
-      when:
-        - sap_patching_hdb_server_base is defined
-        - sap_patching_hdb_server_source is defined
-        - sap_patching_hdb_server_base != sap_patching_hdb_server_source
+    # Shell is used instead of copy/move modules to ensure we can use globbing
+    # to move file in case they are not in capitals as expected.
+    - name: SAP Patching - HDB Server - Prepare - Move all files {{ __direction }}
+      ansible.builtin.shell:
+        cmd: >-
+          mv '{{ __sap_patching_hdb_server_source }}'/[Ii][Mm][Dd][Bb]_[Ss][Ee][Rr][Vv][Ee][Rr]*
+          '{{ __sap_patching_hdb_server_base }}/'
+      vars:
+        __direction: "from {{ __sap_patching_hdb_server_source }} to {{ __sap_patching_hdb_server_base }}"
+      when: __sap_patching_hdb_server_base != __sap_patching_hdb_server_source
       changed_when: true
 
-    - name: Extract HDB server SAR file to the target
-      ansible.builtin.command: >-
-        {{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
-        -xvf {{ sap_patching_hdb_server_base }}/{{ __sap_patching_fact_hdb_server_sar }}
-        -R "{{ __sap_patching_fact_hdb_server_extract_target }}"
-        -manifest SIGNATURE.SMF
+
+    - name: SAP Patching - HDB Server - Prepare - Extract HDB server SAR file to the target
+      ansible.builtin.command:
+        cmd: >-
+          {{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
+          -xvf {{ __sap_patching_hdb_server_base }}/{{ __sap_patching_fact_hdb_server_sar }}
+          -R "{{ __sap_patching_fact_hdb_server_extract_target }}"
+          -manifest SIGNATURE.SMF
       register: __sap_patching_register_extract_result
       args:
         chdir: "{{ __sap_patching_fact_hdb_server_extract_target }}"
       become: true
       become_user: "{{ sap_patching_file_owner }}"
       changed_when: "'SAPCAR: processing archive' in __sap_patching_register_extract_result.stdout"
-      failed_when: __sap_patching_register_extract_result.rc != 0
 
-    - name: Check that HDB server extracted path exists and is a directory
+    - name: SAP Patching - HDB Server - Prepare - Fail if extraction of HDB server SAR file failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: Extraction of HDB server SAR file '{{ __sap_patching_fact_hdb_server_sar }}' failed.
+          SAPCAR output: {{ __sap_patching_register_extract_result.stdout | d('') }}
+          SAPCAR error: {{ __sap_patching_register_extract_result.stderr | d('') }}
+      when: __sap_patching_register_extract_result.rc != 0
+
+
+    - name: SAP Patching - HDB Server - Prepare - Stat availability of the HDB server extracted path
       ansible.builtin.stat:
         path: "{{ __sap_patching_fact_hdb_server_extract_target }}/SAP_HANA_DATABASE/server"
       register: __sap_patching_register_hdb_server_extracted_server_dir_stat
 
-    - name: Assert HDB server extracted path exists and is a directory
-      ansible.builtin.assert:
-        that:
-          - __sap_patching_register_hdb_server_extracted_server_dir_stat.stat.exists
-          - __sap_patching_register_hdb_server_extracted_server_dir_stat.stat.isdir
-        fail_msg: "HDB server directory '{{ __sap_patching_fact_hdb_server_extract_target }}/SAP_HANA_DATABASE/server' does not exist or is not a directory."
-        success_msg: "HDB server directory '{{ __sap_patching_fact_hdb_server_extract_target }}/SAP_HANA_DATABASE/server' exists and is a directory."
+    - name: SAP Patching - HDB Server - Prepare - Fail if HDB server extracted path does not exist or is not a directory
+      ansible.builtin.fail:
+        msg: >-
+          FAIL: HDB server directory '{{ __sap_patching_fact_hdb_server_extract_target }}/SAP_HANA_DATABASE/server'
+          does not exist or is not a directory.
+      when: not (__sap_patching_register_hdb_server_extracted_server_dir_stat.stat.exists
+              and __sap_patching_register_hdb_server_extracted_server_dir_stat.stat.isdir)
 
-    - name: Ensure symbolic link for HDB server directory is correct
+    - name: SAP Patching - HDB Server - Prepare - Ensure symbolic link for HDB server directory is correct
       ansible.builtin.file:
         src: "{{ __sap_patching_fact_hdb_server_extract_target }}/SAP_HANA_DATABASE"
-        dest: "{{ sap_patching_hdb_server_base }}/{{ sap_patching_hdb_server_to_apply_symlink }}"
+        dest: "{{ __sap_patching_hdb_server_base }}/{{ sap_patching_hdb_server_to_apply_symlink }}"
         state: link
         force: true
         owner: "{{ sap_patching_file_owner }}"
@@ -108,6 +120,7 @@
       become: true
       become_user: "{{ sap_patching_file_owner }}"
 
-    - name: Set sap_patching_hdb_server_to_apply variable for use in later tasks
+    - name: SAP Patching - HDB Server - Prepare - Set sap_patching_hdb_server_to_apply variable for use in later tasks
       ansible.builtin.set_fact:
-        sap_patching_hdb_server_to_apply: "{{ __sap_patching_fact_hdb_server_extract_target }}/SAP_HANA_DATABASE"
+        sap_patching_hdb_server_to_apply:
+          "{{ __sap_patching_fact_hdb_server_extract_target }}/SAP_HANA_DATABASE"

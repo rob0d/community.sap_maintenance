@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-# Update internal variables as xnw_kernel_restart is shared with webdisp.
-- name: SAP Patching - Kernel - Restart - Set fact with tasks specific variables
+# Update variables to pass into shared tasks.
+- name: SAP Patching - Kernel - Restart - Set fact with 'abap_kernel' specific variables
   ansible.builtin.set_fact:
     __sap_patching_fact_sap_system_sid: "{{ sap_patching_sap_system_sid }}"
     __sap_patching_fact_sidadm_user: "{{ sap_patching_sap_system_sid | lower }}adm"
     __sap_patching_fact_kernel_restart_strategy: "{{ sap_patching_kernel_restart_strategy }}"
-    __sap_patching_fact_kernel_or_webdisp: "abap_kernel"
+    __sap_patching_fact_kernel_type: "abap_kernel"
 
 - name: SAP Patching - Kernel - Restart - Include tasks to get a list of sapstartsrv instances
   ansible.builtin.include_tasks:
     file: "{{ role_path }}/tasks/startstop/sapstartsrv_instances.yml"
 
-- name: SAP Patching - Kernel - Restart - Execute kernel restart function to restart the system
+- name: SAP Patching - Kernel - Restart - Execute shared tasks for kernel restart
   ansible.builtin.include_tasks:
-    file: xnw_kernel_restart.yml
+    file: shared_kernel_restart.yml
   when: __sap_patching_fact_instance_list | d([]) | length > 0

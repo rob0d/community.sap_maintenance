@@ -1,19 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-# Search for webdisp SAR files and extract support package number
-- name: SAP Patching - Web Dispatcher - Prepare - Find .sar files in the webdisp source directory (case-insensitive)
-  ansible.builtin.find:
-    paths: "{{ sap_patching_webdisp_source }}"
-    patterns: ['(?i)sapwebdisp_.*\.sar$']
-    use_regex: true
-    file_type: file
-    recurse: false
-  register: __sap_patching_register_webdisp_source_dir_content
+# # Update variables to pass into shared tasks.
+# - name: SAP Patching - Web Dispatcher - Prepare - Set fact with 'webdisp' specific variables
+#   ansible.builtin.set_fact:
+#     __sap_patching_fact_kernel_base: "{{ __sap_patching_webdisp_base }}"
+#     __sap_patching_fact_kernel_source: "{{ __sap_patching_webdisp_source }}"
+#     __sap_patching_fact_kernel_source_local: "{{ __sap_patching_webdisp_source_local }}"
+#     __sap_patching_fact_kernel_files_shared: "{{ sap_patching_webdisp_files_shared | d(true) }}"
+#     __sap_patching_fact_kernel_type: webdisp
+#     __sap_patching_fact_kernel_find_patterns: ['(?i)sapwebdisp_.*\.sar$']
+
+- name: SAP Patching - Web Dispatcher - Prepare - Execute shared tasks for kernel prepare
+  ansible.builtin.include_tasks:
+    file: shared_kernel_prepare.yml
+  vars:
+    __sap_patching_fact_kernel_base: "{{ __sap_patching_webdisp_base }}"
+    __sap_patching_fact_kernel_source: "{{ __sap_patching_webdisp_source }}"
+    __sap_patching_fact_kernel_source_local: "{{ __sap_patching_webdisp_source_local }}"
+    __sap_patching_fact_kernel_files_shared: "{{ sap_patching_webdisp_files_shared | d(true) }}"
+    __sap_patching_fact_kernel_type: webdisp
+    __sap_patching_fact_kernel_find_patterns: ['(?i)sapwebdisp_.*\.sar$']
 
 
 - name: Block to execute only if SAR files were found
-  when: __sap_patching_register_webdisp_source_dir_content.matched | d(0) > 0
+  when: __sap_patching_register_kernel_source_dir_content.matched | d(0) > 0
   block:
 
     # In case there are more than one SAR files, get the one with the highest version number
@@ -22,7 +33,7 @@
       ansible.builtin.set_fact:
         __sap_patching_fact_webdisp_sar: >-
           {{
-            __sap_patching_register_webdisp_source_dir_content.files
+            __sap_patching_register_kernel_source_dir_content.files
             | map(attribute='path')
             | map('basename')
             | list
@@ -197,4 +208,4 @@
     msg: |
       No web dispatcher SAR files found in source directory {{ __sap_patching_webdisp_source }}.
       Skipping web dispatcher preparation.
-  when: __sap_patching_register_webdisp_source_dir_content.matched == 0
+  when: __sap_patching_register_kernel_source_dir_content.matched == 0
