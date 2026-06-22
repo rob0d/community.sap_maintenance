@@ -1,8 +1,111 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
+- name: Block for base directory
+  run_once: "{{ sap_patching_host_agent_files_shared | d(true) }}"
+  block:
+    - name: SAP Patching - Host Agent - Prepare - Stat availability of the base directory
+      ansible.builtin.stat:
+        path: "{{ sap_patching_host_agent_base }}"
+      register: __sap_patching_register_host_agent_prepare_base_stat
+
+    - name: SAP Patching - Host Agent - Prepare - Create base directory with user {{ sap_patching_file_owner }}
+      ansible.builtin.file:
+        path: "{{ sap_patching_host_agent_base }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when: not __sap_patching_register_host_agent_prepare_base_stat.stat.exists
+
+    - name: Block when directory exists
+      when: __sap_patching_register_host_agent_prepare_base_stat.stat.exists
+      block:
+        - name: SAP Patching - Host Agent - Prepare - Fail if base directory is not a directory
+          ansible.builtin.fail:
+            msg: |
+              FAIL: The path "{{ sap_patching_host_agent_base }}" exists but it is not a directory.
+              Please ensure that the path defined in the variable 'sap_patching_host_agent_base' is a directory.
+          when: not (__sap_patching_register_host_agent_prepare_base_stat.stat.exists
+                  and __sap_patching_register_host_agent_prepare_base_stat.stat.isdir)
+
+        - name: SAP Patching - Host Agent - Prepare - Stat base directory with user {{ sap_patching_file_owner }}
+          ansible.builtin.stat:
+            path: "{{ sap_patching_host_agent_base }}"
+          register: __sap_patching_register_host_agent_prepare_base_user_stat
+          # Stat with correct user to check permissions.
+          become: true
+          become_user: "{{ sap_patching_file_owner }}"
+
+        - name: SAP Patching - Host Agent - Prepare - Fail if user cannot write to base directory
+          ansible.builtin.fail:
+            msg: |
+              FAIL: User '{{ sap_patching_file_owner }}' does not have write permissions
+              to the directory '{{ sap_patching_host_agent_base }}'
+              defined in the variable 'sap_patching_host_agent_base'.
+
+              Ansible cannot create the symlink '{{ sap_patching_host_agent_to_apply_symlink }}' without write access to this path.
+              Please check the directory permissions (chmod/chown).
+          when: not __sap_patching_register_host_agent_prepare_base_user_stat.stat.writeable
+
+
+- name: Block for source directory
+  run_once: "{{ sap_patching_host_agent_files_shared | d(true) }}"
+  block:
+    - name: SAP Patching - Host Agent - Prepare - Stat availability of the source directory
+      ansible.builtin.stat:
+        path: "{{ sap_patching_host_agent_source }}"
+      register: __sap_patching_register_host_agent_prepare_source_stat
+
+    - name: SAP Patching - Host Agent - Prepare - Create source directory with user {{ sap_patching_file_owner }}
+      ansible.builtin.file:
+        path: "{{ sap_patching_host_agent_source }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when: not __sap_patching_register_host_agent_prepare_source_stat.stat.exists
+
+    - name: SAP Patching - Host Agent - Prepare - Fail if source directory is not a directory
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The path "{{ sap_patching_host_agent_source }}" exists but it is not a directory.
+              Please ensure that the path defined in the variable 'sap_patching_host_agent_source' is a directory.
+      when: not (__sap_patching_register_host_agent_prepare_source_stat.stat.exists
+              and __sap_patching_register_host_agent_prepare_source_stat.stat.isdir)
+
+
+    # Copy to multiple targets can saturate the control node and the network.
+    # NOTE: Possible to add 'throttle: 1' to limit to one copy at a time, but it will slow down the process significantly.
+    - name: Block for local source directory
+      when: not sap_patching_host_agent_files_on_target
+      block:
+        - name: SAP Patching - Host Agent - Prepare - Stat availability of the local source directory
+          ansible.builtin.stat:
+            path: "{{ sap_patching_host_agent_source_local }}"
+          delegate_to: localhost  # Stat should be executed on control node where the files are located
+          register: __sap_patching_register_host_agent_source_local_stat
+
+        - name: SAP Patching - Host Agent - Prepare - Fail if local source directory does not exist
+          ansible.builtin.fail:
+            msg: |
+              FAIL: The path "{{ sap_patching_host_agent_source_local }}" does not exist or is not a directory.
+              Please ensure that the host agent source path is correct and accessible.
+          when: not (__sap_patching_register_host_agent_source_local_stat.stat.exists
+                  and __sap_patching_register_host_agent_source_local_stat.stat.isdir)
+
+        - name: SAP Patching - Host Agent - Prepare - Copy source files from control node to managed node
+          ansible.builtin.copy:
+            src: "{{ sap_patching_host_agent_source_local }}/"  # Trailing slash is required.
+            dest: "{{ sap_patching_host_agent_source }}/"
+            remote_src: false  # Copy from control node
+            mode: '0755'
+            owner: "{{ sap_patching_file_owner }}"
+            group: "{{ sap_patching_file_group }}"
+
+
 # Search for host agent SAR files and extract support package number
-- name: SAP Patching - Host Agent - Prepare - Check if host agent source directory contains .sar files (case-insensitive)
+- name: SAP Patching - Host Agent - Prepare - Find SAR files in the source directory (case-insensitive)
   ansible.builtin.find:
     paths: "{{ sap_patching_host_agent_source }}"
     patterns: ['(?i)SAPHOSTAGENT.*\.SAR$']
@@ -22,22 +125,45 @@
         __sap_patching_fact_host_agent_sar: >-
           {{
             __sap_patching_register_host_agent_source_dir_content.files
-            | map(attribute='path')
-            | map('basename')
-            | sort
-            | list
-            | last
+              | map(attribute='path')
+              | map('basename')
+              | sort
+              | list
+              | last
           }}
 
+    # Example: File 'SAPHOSTAGENT71_71-80004822.SAR' results in version '71_71'.
     - name: SAP Patching - Host Agent - Prepare - Set fact with extracted host agent version from SAR file
       ansible.builtin.set_fact:
-        __sap_patching_fact_host_agent_version:
-          "{{ __sap_patching_fact_host_agent_sar | regex_search('(?i)SAPHOSTAGENT([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
+        __sap_patching_fact_host_agent_version: >-
+          {{
+            __sap_patching_fact_host_agent_sar
+              | regex_search('(?i)SAPHOSTAGENT([0-9]+_[0-9]+)-[0-9]{8}\.SAR', '\1')
+              | d([], true)
+              | first
+              | d('', true)
+          }}
+
+    - name: SAP Patching - Host Agent - Prepare - Fail if no host agent version could be extracted from SAR file name
+      ansible.builtin.fail:
+        msg: |
+          FAIL: No host agent version could be extracted from SAR file name '{{ __sap_patching_fact_host_agent_sar }}'.
+          Please ensure that the SAR file name follows the expected pattern.
+          Example: File 'SAPHOSTAGENT71_71-80004822.SAR' results in version '71_71'
+      when: __sap_patching_fact_host_agent_version == ''
+
+    - name: SAP Patching - Host Agent - Prepare - Show version extracted from SAR file name
+      ansible.builtin.debug:
+        msg: >-
+          INFO: Host agent version extracted from SAR file name '{{ __sap_patching_fact_host_agent_sar }}'
+          is '{{ __sap_patching_fact_host_agent_version }}'.
+      when: __sap_patching_fact_host_agent_version != ''
 
     - name: SAP Patching - Host Agent - Prepare - Set fact with the target host agent directory
       ansible.builtin.set_fact:
         __sap_patching_fact_host_agent_extract_target:
           "{{ __sap_patching_host_agent_base }}/{{ __sap_patching_host_agent_extracted }}_{{ __sap_patching_fact_host_agent_version }}"
+
 
     - name: SAP Patching - Host Agent - Prepare - Create target host agent directory
       ansible.builtin.file:
@@ -57,6 +183,9 @@
       ansible.builtin.fail:
         msg: |
           FAIL: Target host agent directory '{{ __sap_patching_fact_host_agent_extract_target }}' does not exist or is not a directory.
+          {% if __sap_patching_fact_host_agent_version == '' %}
+          Please ensure that the host agent SAR file is present in the source directory '{{ sap_patching_host_agent_source }}'.
+          {% endif %}
       when: not (__sap_patching_register_host_agent_extract_target_stat.stat.exists
               and __sap_patching_register_host_agent_extract_target_stat.stat.isdir)
 
@@ -65,7 +194,7 @@
     # to move file in case they are not in capitals as expected.
     - name: SAP Patching - Host Agent - Prepare - Move all files {{ __direction }}
       ansible.builtin.shell:
-        cmd: |
+        cmd: >-
           mv '{{ __sap_patching_host_agent_source }}'/[Ss][Aa][Pp][Hh][Oo][Ss][Tt][Aa][Gg][Ee][Nn][Tt]*
           '{{ __sap_patching_host_agent_base }}/'
       vars:
@@ -73,7 +202,7 @@
       when: __sap_patching_host_agent_base != __sap_patching_host_agent_source
       changed_when: true
 
-    - name: SAP Patching - Host Agent - Prepare - Extract host agent SAR file to the target
+    - name: SAP Patching - Host Agent - Prepare - Extract host agent SAR file
       ansible.builtin.command:
         cmd: >-
           {{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}
@@ -101,13 +230,13 @@
         path: "{{ __sap_patching_fact_host_agent_extract_target }}/saphostexec"
       register: __sap_patching_register_host_agent_extracted_stat
 
-    - name: SAP Patching - Host Agent - Prepare - Fail if host agent extracted path does not exist or is not a directory
+    - name: SAP Patching - Host Agent - Prepare - Fail if host agent extracted path does not exist or is not a regular file
       ansible.builtin.fail:
         msg: >-
-          FAIL: Host agent directory '{{ __sap_patching_fact_host_agent_extract_target }}/saphostexec'
-          does not exist or is not a directory.
+          FAIL: Host agent file '{{ __sap_patching_fact_host_agent_extract_target }}/saphostexec'
+          does not exist or is not a regular file.
       when: not (__sap_patching_register_host_agent_extracted_stat.stat.exists
-              and __sap_patching_register_host_agent_extracted_stat.stat.isdir)
+              and __sap_patching_register_host_agent_extracted_stat.stat.isreg)
 
     - name: SAP Patching - Host Agent - Prepare - Ensure symbolic link for host agent directory is correct
       ansible.builtin.file:
@@ -122,5 +251,5 @@
 
     - name: SAP Patching - Host Agent - Prepare - Set fact with prepared path for further execution tasks
       ansible.builtin.set_fact:
-        sap_patching_host_agent_to_apply:
+        __sap_patching_fact_host_agent_to_apply:
           "{{ __sap_patching_fact_host_agent_extract_target }}"

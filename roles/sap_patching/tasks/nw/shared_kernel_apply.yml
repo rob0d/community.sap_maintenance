@@ -43,8 +43,8 @@
 #     - not __sap_patching_fact_kernel_to_apply | regex_search('(^|/)' ~ __sap_patching_kernel_extracted ~ '(/|$)')
 
 
-# Prepare tasks prepared kernel files on all managed nodes, or on first one with shared filesystem.
-# Be it either of those, we still have to ensure that all hosts have access to kernel files.
+# Prepare tasks prepared all files on all managed nodes, or on first one with shared filesystem.
+# Be it either of those, we still have to ensure that all hosts have access to these files.
 - name: SAP Patching - Kernel - Apply - Stat availability of extracted kernel directory
   ansible.builtin.stat:
     path: "{{ __sap_patching_fact_kernel_to_apply }}"

@@ -6,7 +6,7 @@
   ansible.builtin.set_fact:
     __sap_patching_fact_sap_system_sid: "{{ sap_patching_wdp_system_sid | upper }}"
     __sap_patching_fact_sidadm_user: "{{ sap_patching_wdp_system_sid | lower }}adm"
-    __sap_patching_fact_kernel_restart_strategy: "all"
+    __sap_patching_fact_kernel_restart_strategy: "all"  # Overwrites 'rks' and 'bootstrap' that abap kernel accepts.
     __sap_patching_fact_kernel_type: "webdisp"
 
 - name: SAP Patching - Web Dispatcher - Restart - Include tasks to get a list of sapstartsrv instances

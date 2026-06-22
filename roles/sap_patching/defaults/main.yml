@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-####################        General settings        ####################
+### General settings
 # The list of tasks that will be executed by this role in the specific order (String).
 # Available options:
 # - Kernel: abap_kernel_prepare, abap_kernel_apply, abap_kernel_restart
@@ -33,8 +33,8 @@ sap_patching_file_owner: "{{ sap_patching_sap_system_sid | lower }}adm"
 sap_patching_file_group: sapsys
 
 
-####################    Kernel patching settings    ####################
-# The path to base kernel directory where version specific kernel directories will be created during the prepare step (String).
+### Kernel patching settings
+# The path to base kernel directory where version specific directories will be created during the prepare step (String).
 # Used when 'sap_patching_kernel_files_on_target' is set to 'true'.
 # If 'sap_patching_kernel_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
 sap_patching_kernel_base: ''  # e.g. /install/kernel
@@ -55,7 +55,7 @@ sap_patching_kernel_source_local: ''  # e.g. "/install/kernel/source"
 # The kernel patch will be determined from the name of the SAR files.
 sap_patching_kernel_prepare_version: autodetect
 
-# The name of directory either relative (to sap_patching_kernel_base) or absolute path to the kernel (String).
+# The name of directory either relative to 'sap_patching_kernel_base' or absolute path to the kernel (String).
 # If not set, the task 'abap_kernel_prepare' will populate correct directory,
 # or fall back to 'sap_patching_kernel_to_apply_symlink'.
 sap_patching_kernel_to_apply: ''
@@ -87,7 +87,7 @@ sap_patching_kernel_restart_strategy: rks
 sap_patching_kernel_prepare_append_to_version: ''
 
 
-####################   HDB client patching settings   ####################
+### HDB client patching settings
 # The path to base HDB client directory where extraction directories will be created during the prepare step (String).
 sap_patching_hdb_client_base: /install/hanadb/client
 
@@ -123,7 +123,7 @@ sap_patching_hdb_client_extracted_shared: true
 sap_patching_hdb_client_extracted_local_path: /install-local/hanadb/client
 
 
-####################   HDB server patching settings   ####################
+### HDB server patching settings
 # The SAP HANA Database System ID (SID) (String).
 # NOTE: Must be set if using database with different SID than 'sap_patching_sap_system_sid'.
 sap_patching_hdb_system_sid: ''
@@ -198,59 +198,88 @@ sap_patching_hdb_server_extracted_shared: true
 sap_patching_hdb_server_extracted_local_path: /install-local/hanadb/server
 
 
-####################   Host agent patching settings   ####################
+### Host agent patching settings
 # Documentation: https://help.sap.com/docs/host-agent/sap-host-agent-doc/sap-host-agent-upgrade?locale=en-US
 
-# The path to base host agent directory where extraction directories will be created during the prepare step (String).
-sap_patching_host_agent_base: /install/hostagents
+# The path to base host agent directory where version specific directories will be created during the prepare step (String).
+# Used when 'sap_patching_host_agent_files_on_target' is set to 'true'.
+# If 'sap_patching_host_agent_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_host_agent_base: ''  # e.g. /install/host_agent
 
-# The path to directory where the host agent SAR files are located (String).
-sap_patching_host_agent_source: "{{ sap_patching_host_agent_base }}/source"
+# The path to directory where the host agent files are located on managed nodes (String).
+# Used when 'sap_patching_host_agent_files_on_target' is set to 'true'.
+# If 'sap_patching_host_agent_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_host_agent_source: ''  # e.g. /install/host_agent/source"
 
-# The name of directory either relative (to sap_patching_host_agent_base) or absolute path to the host agent (String).
-# If not set, the task 'abap_host_agent_prepare' will populate correct directory,
+# The path to directory where the host agent files are located on Control node (localhost) (String).
+# Used when 'sap_patching_host_agent_files_on_target' is set to 'false'.
+# Host agent files will be copied from this path on the control node to 'sap_patching_host_agent_source' on the managed nodes during prepare step.
+sap_patching_host_agent_source_local: ''  # e.g. "/install/host_agent/source"
+
+# The name of directory either relative to 'sap_patching_host_agent_base' or absolute path to the host agent (String).
+# If not set, the task 'host_agent_prepare' will populate correct directory,
 # or fall back to 'sap_patching_host_agent_to_apply_symlink'.
 sap_patching_host_agent_to_apply: ''
 
 # The path to directory where host agent installation is located when using 'autoupdate' (String).
-# If host agent autoupdate is configured (https://me.sap.com/notes/1473974)
+# If host agent autoupdate is configured (https://me.sap.com/notes/1473974),
 # this is the path where it's looking for updates (parameter DIR_NEW in host_profile).
-sap_patching_host_agent_autoupdate_path: /install/HostAgentUpdateDir
+sap_patching_host_agent_autoupdate_path: ''  # e.g. /install/HostAgentUpdateDir
 
-# >>> TODO NEED TO DECIDE ON HOW TO HANDLE IT <<<
-# Set which source SAR file location type is used (Boolean).
-# If true, the extracted host agent files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
-# If false, the extracted host agent files will be copied from the Ansible controller to the target host
-sap_patching_host_agent_extracted_shared: true
+# Select whether the host agent files are already present on the managed nodes (Boolean).
+# If 'true', the host agent files are already on managed nodes (e.g., pre-staged to NFS or local disk)
+#   and the prepare step will verify files exist and extract them in place.
+# If 'false', the host agent files are on the control node and must be copied to managed nodes
+#   and the prepare step will copy files from 'sap_patching_host_agent_source_local' to managed nodes.
+sap_patching_host_agent_files_on_target: true
 
-# The path to directory where a local copy of extracted host agent files will be stored (String).
-# These files must be present locally in order to run saphostexec.
-sap_patching_host_agent_extracted_local_path: /install-local/hostagents
+# Select whether the host agent files will be shared among multiple hosts (Boolean).
+# If 'true', the host agent files will copied and extracted only once, because target host is expected to be shared.
+# If 'false', the host agent files will copied and extracted on all target hosts separately.
+# NOTE: Existing shared filesystem is expected to be present and accessible by all hosts if 'true'.
+sap_patching_host_agent_files_shared: true
 
 
-####################   Web disp patching settings   ####################
+### Web disp patching settings
 # SAP Web Dispatcher System ID (SID) (String).
+# Separate from 'sap_patching_sap_system_sid' because Web Dispatcher can be installed on different SID than ABAP system.
 sap_patching_wdp_system_sid: ''
 
-# The path to base web dispatcher directory where extraction directories will be created during the prepare step (String).
-sap_patching_webdisp_base: /install/webdisp
+# The path to base web dispatcher directory where version specific directories will be created during the prepare step (String).
+# Used when 'sap_patching_webdisp_files_on_target' is set to 'true'.
+# If 'sap_patching_webdisp_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_webdisp_base: ''  # e.g. /install/webdisp
 
-# The path to directory where the web dispatcher SAR files are located (String).
-sap_patching_webdisp_source: "{{ sap_patching_webdisp_base }}/source"
+# The path to directory where the web dispatcher files are located on managed nodes (String).
+# Used when 'sap_patching_webdisp_files_on_target' is set to 'true'.
+# If 'sap_patching_webdisp_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_webdisp_source: ''  # e.g.  /install/webdisp/source
 
-# The name of directory either relative (to sap_patching_webdisp_base) or absolute path to the web dispatcher (String).
-# If not set, the task 'abap_webdisp_prepare' will populate correct directory,
+# The path to directory where the web dispatcher files are located on Control node (localhost) (String).
+# Used when 'sap_patching_webdisp_files_on_target' is set to 'false'.
+# Web dispatcher files will be copied from this path on the control node to 'sap_patching_webdisp_source' on the managed nodes during prepare step.
+sap_patching_webdisp_source_local: ''  # e.g. "/install/webdisp/source"
+
+# The name of directory either relative to 'sap_patching_webdisp_base' or absolute path to the web dispatcher (String).
+# If not set, the task 'webdisp_prepare' will populate correct directory,
 # or fall back to 'sap_patching_webdisp_to_apply_symlink'.
 sap_patching_webdisp_to_apply: ''
 
-# >>> TODO NEED TO DECIDE ON HOW TO HANDLE IT <<<
-# Set which source SAR file location type is used (Boolean).
-# If true, the extracted web disp files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
-# If false, the extracted web disp files will be copied from the Ansible controller to the target host
-sap_patching_webdisp_extracted_shared: true
+# Select whether the web dispatcher files are already present on the managed nodes (Boolean).
+# If 'true', the web dispatcher files are already on managed nodes (e.g., pre-staged to NFS or local disk)
+#   and the prepare step will verify files exist and extract them in place.
+# If 'false', the web dispatcher files are on the control node and must be copied to managed nodes
+#   and the prepare step will copy files from 'sap_patching_webdisp_source_local' to managed nodes.
+sap_patching_webdisp_files_on_target: true
+
+# Select whether the web dispatcher files will be shared among multiple hosts (Boolean).
+# If 'true', the web dispatcher files will copied and extracted only once, because target host is expected to be shared.
+# If 'false', the web dispatcher files will copied and extracted on all target hosts separately.
+# NOTE: Existing shared filesystem is expected to be present and accessible by all hosts if 'true'.
+sap_patching_webdisp_files_shared: true
 
 
-###################   Optional fine tuning variables   ###################
+### Optional fine tuning variables
 # Changing following variables is generally not recommended as they are set to optimal values for most use cases.
 # Change only if you know what you are doing and have specific reason to do so.
 
@@ -258,7 +287,7 @@ sap_patching_webdisp_extracted_shared: true
 # See https://help.sap.com/docs/ABAP_PLATFORM_NEW/1ba3197c1aa7489882770103e3a610dc/78cf5bf734c9419e82e7bac87daa7e60.html?locale=en-US
 # RKS start wait timeout in seconds - must be more than rdisp/server_startup/max_time (default is 600 seconds)
 sap_patching_kernel_rks_wait_timeout: 900
-# RKS soft shutdown timeout in seconds  - must be more than rdisp/shutdown/max_time (default is 3600 seconds)
+# RKS soft shutdown timeout in seconds - must be more than rdisp/shutdown/max_time (default is 3600 seconds)
 sap_patching_kernel_rks_soft_timeout: 3600
 # Optional override for UpdateSystem function, that must be used with caution, because it can ignore RKS requirements.
 # Force mode is automatically used when HA is detected by sapcontrol.

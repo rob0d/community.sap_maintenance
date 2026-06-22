@@ -89,6 +89,8 @@
               and __sap_patching_register_kernel_prepare_source_stat.stat.isdir)
 
 
+    # Copy to multiple targets can saturate the control node and the network.
+    # NOTE: Possible to add 'throttle: 1' to limit to one copy at a time, but it will slow down the process significantly.
     - name: Block for local source directory
       when: not sap_patching_kernel_files_on_target
       block:
