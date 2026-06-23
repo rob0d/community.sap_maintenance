@@ -19,8 +19,9 @@ __sap_patching_exec_def:
       - kernel
     where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
     vars:
-    # If shared is used, assumption is that extracted files will be available across hosts.
-    run_once: "{{ sap_patching_kernel_extracted_shared | d(true) }}"
+    # Variable defines if source or base directories are shared, thus available on all hosts in play.
+    run_once: "{{ sap_patching_kernel_files_shared | d(true) }}"
+
   abap_kernel_apply:
     file: nw/abap_kernel_apply.yml
     validators:
@@ -28,7 +29,9 @@ __sap_patching_exec_def:
       - kernel
     where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
     vars:
+    # Patching is executed on global exe, which is shared by design.
     run_once: true
+
   abap_kernel_restart:
     file: nw/abap_kernel_restart.yml
     validators:
@@ -36,7 +39,9 @@ __sap_patching_exec_def:
       - kernel
     where: "{% if group_names | select('search', '^nwas_abap.*') | list | length > 0 %}true{% else %}false{% endif %}"
     vars:
+    # Used on task level and only for RKS, while other modes will be executed on all hosts in play.
     run_once: false
+
 
   # HANA DB client
   hdb_client_prepare:
@@ -48,7 +53,9 @@ __sap_patching_exec_def:
     tags:
       - sap_patching_hdb_client_prepare
     vars:
-    run_once: true
+    # Variable defines if source or base directories are shared, thus available on all hosts in play.
+    run_once: "{{ sap_patching_hdb_client_files_shared | d(true) }}"
+
   hdb_client_apply:
     file: hana/hdb_client_apply.yml
     validators:
@@ -57,7 +64,9 @@ __sap_patching_exec_def:
     tags:
       - sap_patching_hdb_client_apply
     vars:
+    # Used on task level only when 'sap_patching_hdb_client_shared_path' is defined.
     run_once: false
+
 
   # HANA DB server platform
   hdb_server_prepare:
@@ -67,7 +76,9 @@ __sap_patching_exec_def:
       - hdb_server
     where:
     vars:
-    run_once: true
+    # Variable defines if source or base directories are shared, thus available on all hosts in play.
+    run_once: "{{ sap_patching_hdb_server_files_shared | d(true) }}"
+
   hdb_server_apply:
     file: hana/hdb_server_apply.yml
     validators:
@@ -75,7 +86,9 @@ __sap_patching_exec_def:
     where:
     vars:
       update_mode: full
+    # HANA does not have global directory like ABAP kernel, so patching is executed on all hosts in play.
     run_once: false
+
   hdb_server_update_prepare:
     file: hana/hdb_server_apply.yml
     validators:
@@ -84,6 +97,7 @@ __sap_patching_exec_def:
     vars:
       update_mode: prepare
     run_once: false
+
   hdb_server_update_resume:
     file: hana/hdb_server_apply.yml
     validators:
@@ -93,6 +107,7 @@ __sap_patching_exec_def:
       update_mode: resume
     run_once: false
 
+
   # Host agent
   host_agent_prepare:
     file: agents/host_agent_prepare.yml
@@ -101,7 +116,9 @@ __sap_patching_exec_def:
       - host_agent
     where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
     vars:
-    run_once: true
+    # Variable defines if source or base directories are shared, thus available on all hosts in play.
+    run_once: "{{ sap_patching_host_agent_files_shared | d(true) }}"
+
   host_agent_apply_auto:
     file: agents/host_agent_apply.yml
     validators:
@@ -109,7 +126,9 @@ __sap_patching_exec_def:
     where: "{% if 'nwas_abap_pas' in group_names %}true{% else %}false{% endif %}"
     vars:
       update_mode: auto
-    run_once: true
+    # Host agent is always installed locally, so patching is executed on all hosts in play.
+    run_once: false
+
   host_agent_apply_manual:
     file: agents/host_agent_apply.yml
     validators:
@@ -117,7 +136,9 @@ __sap_patching_exec_def:
     where: true
     vars:
       update_mode: manual
+    # Host agent is always installed locally, so patching is executed on all hosts in play.
     run_once: false
+
 
   # Web disp
   webdisp_prepare:
@@ -127,7 +148,9 @@ __sap_patching_exec_def:
       - webdisp
     where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
     vars:
-    run_once: true
+    # Variable defines if source or base directories are shared, thus available on all hosts in play.
+    run_once: "{{ sap_patching_webdisp_files_shared | d(true) }}"
+
   webdisp_apply:
     file: nw/webdisp_apply.yml
     validators:
@@ -135,13 +158,16 @@ __sap_patching_exec_def:
     where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
     vars:
     run_once: false
+
   webdisp_restart:
     file: nw/webdisp_restart.yml
     validators:
       - webdisp
     where: "{% if group_names | select('search', '^webdisp.*') | list | length > 0 %}true{% else %}false{% endif %}"
     vars:
+    # Used on task level and only for RKS, while other modes will be executed on all hosts in play.
     run_once: false
+
 
   # All stop tasks
   abap_stop_system:
@@ -152,13 +178,16 @@ __sap_patching_exec_def:
     vars:
       sap_control_action: stop_system
       task_execution_mode: direct
+    # Sapcontrol with 'StopSystem' is used and it must be executed only once.
     run_once: true
+
   # hdb_stop_instance:
   #   file: startstop/hdb_stop.yml
   #   where: "{% if group_names | select('search', '^hana.*') | list | length > 0 %}true{% else %}false{% endif %}"
   #   vars:
   #     sap_control_action: stop_instance
   #   run_once: false
+
 
   # All start tasks
   abap_start_system:
@@ -169,13 +198,16 @@ __sap_patching_exec_def:
     vars:
       sap_control_action: start_system
       task_execution_mode: direct
+    # Sapcontrol with 'StartSystem' is used and it must be executed only once.
     run_once: true
+
   # hdb_start_instance:
   #   file: startstop/hdb_start.yml
   #   where: "{% if group_names | select('search', '^hana.*') | list | length > 0 %}true{% else %}false{% endif %}"
   #   vars:
   #     sap_control_action: start_instance
   # run_once: false
+
 
 # Default sub-folders names which store the extracted files
 __sap_patching_kernel_extracted: extracted
@@ -190,9 +222,11 @@ __sap_patching_kernel_source_local: "{{ sap_patching_kernel_source_local | regex
 __sap_patching_kernel_base: "{{ sap_patching_kernel_base | regex_replace('\\/$', '') }}"
 
 __sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_source | regex_replace('\\/$', '') }}"
+__sap_patching_hdb_server_source_local: "{{ sap_patching_hdb_server_source_local | regex_replace('\\/$', '') }}"
 __sap_patching_hdb_server_base: "{{ sap_patching_hdb_server_base | regex_replace('\\/$', '') }}"
 
 __sap_patching_hdb_client_source: "{{ sap_patching_hdb_client_source | regex_replace('\\/$', '') }}"
+__sap_patching_hdb_client_source_local: "{{ sap_patching_hdb_client_source_local | regex_replace('\\/$', '') }}"
 __sap_patching_hdb_client_base: "{{ sap_patching_hdb_client_base | regex_replace('\\/$', '') }}"
 
 __sap_patching_webdisp_source: "{{ sap_patching_webdisp_source | regex_replace('\\/$', '') }}"
@@ -200,6 +234,7 @@ __sap_patching_webdisp_source_local: "{{ sap_patching_webdisp_source_local | reg
 __sap_patching_webdisp_base: "{{ sap_patching_webdisp_base | regex_replace('\\/$', '') }}"
 
 __sap_patching_host_agent_source: "{{ sap_patching_host_agent_source | regex_replace('\\/$', '') }}"
+__sap_patching_host_agent_source_local: "{{ sap_patching_host_agent_source_local | regex_replace('\\/$', '') }}"
 __sap_patching_host_agent_base: "{{ sap_patching_host_agent_base | regex_replace('\\/$', '') }}"
 
 __sap_patching_sapcar_path: "{{ sap_patching_sapcar_path | regex_replace('\\/$', '') }}"

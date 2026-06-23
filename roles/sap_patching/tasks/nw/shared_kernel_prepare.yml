@@ -4,7 +4,6 @@
 # Shared task file for both ABAP Kernel and Web Dispatcher Kernel patching.
 
 - name: Block for base directory
-  run_once: "{{ __sap_patching_fact_kernel_files_shared }}"
   block:
     - name: SAP Patching - Kernel - Prepare - Stat availability of the base directory
       ansible.builtin.stat:
@@ -60,7 +59,6 @@
 
 
 - name: Block for source directory
-  run_once: "{{ __sap_patching_fact_kernel_files_shared }}"
   block:
     - name: SAP Patching - Kernel - Prepare - Stat availability of the source directory
       ansible.builtin.stat:

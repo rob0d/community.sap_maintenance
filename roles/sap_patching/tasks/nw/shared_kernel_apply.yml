@@ -3,6 +3,12 @@
 
 # Shared task file for both ABAP Kernel and Web Dispatcher Kernel patching.
 
+# Explanation for validation handling in apply tasks:
+# 1. Patching file validations must be executed and fail if not valid.
+# 2. Apply tasks can be skipped if target host is missing the target directory.
+# This ensures that all hosts in play are ready for patching, but only valid hosts will be patched.
+# Example for distributed HA system: Kernel patched only on Application servers, while HDB server patched only on Database servers.
+
 # Prepare tasks are doing validation already, but apply can be executed without prepare, so validation must happen again.
 - name: SAP Patching - Kernel - Apply - Stat availability of the base directory
   ansible.builtin.stat:
@@ -22,11 +28,18 @@
           and __sap_patching_register_kernel_apply_base_stat.stat.isdir)
 
 
+# Load version to apply in this order:
+# 1. If '__sap_patching_fact_kernel_to_apply_user' is not empty.
+# 2. If '__sap_patching_fact_kernel_to_apply' is not defined. We assume prepare was executed.
+# 3. Default symlink '__sap_patching_fact_kernel_to_apply_symlink_user'.
 - name: SAP Patching - Kernel - Apply - Set fact with kernel symlink if kernel is not specified
   ansible.builtin.set_fact:
-    __sap_patching_fact_kernel_to_apply:
-      "{{ __sap_patching_fact_kernel_to_apply_symlink }}"
-  when: __sap_patching_fact_kernel_to_apply | string | trim | length == 0
+    __sap_patching_fact_kernel_to_apply: >-
+      {{ __sap_patching_fact_kernel_to_apply_user | regex_replace('\\/$', '')
+        if __sap_patching_fact_kernel_to_apply_user | string | trim | length > 0
+        else (__sap_patching_fact_kernel_to_apply
+          if __sap_patching_fact_kernel_to_apply | string | trim | length > 0
+          else __sap_patching_fact_kernel_to_apply_symlink_user) }}
 
 - name: SAP Patching - Kernel - Apply - Set fact with updated kernel path if it is not an absolute path
   ansible.builtin.set_fact:
@@ -44,7 +57,6 @@
 
 
 # Prepare tasks prepared all files on all managed nodes, or on first one with shared filesystem.
-# Be it either of those, we still have to ensure that all hosts have access to these files.
 - name: SAP Patching - Kernel - Apply - Stat availability of extracted kernel directory
   ansible.builtin.stat:
     path: "{{ __sap_patching_fact_kernel_to_apply }}"
@@ -84,15 +96,13 @@
     path: "{{ __sap_patching_fact_kernel_global_exe }}"
   register: __sap_patching_register_sapmnt_exe_stat
 
-
-# Continue if the target directory is present (this will silently skip servers without kernel/webdisp present)
-- name: Block for kernel apply execution when global exe directory is present
+# Validate presence of the global exe directory and its content to determine if patching can proceed.
+- name: Block to identify if patching can proceed
   when:
     - __sap_patching_register_sapmnt_exe_stat.stat.exists
     - __sap_patching_register_sapmnt_exe_stat.stat.islnk
       or __sap_patching_register_sapmnt_exe_stat.stat.isdir
   block:
-
     - name: SAP Patching - Kernel - Apply - Find files in the global exe directory {{ __sap_patching_fact_kernel_global_exe }}
       ansible.builtin.find:
         paths: "{{ __sap_patching_fact_kernel_global_exe }}"
@@ -102,10 +112,21 @@
     - name: SAP Patching - Kernel - Apply - Fail if global exe directory is empty
       ansible.builtin.fail:
         msg: |
-          FAIL: The global exe directory "{{ __sap_patching_fact_kernel_global_exe }}" is empty and patching cannot proceed!
+          FAIL: The global exe directory "{{ __sap_patching_fact_kernel_global_exe }}" was found, but it is empty!
+          This indicates that the targeted SAP system is not correctly installed and patching cannot proceed!
           Ensure that targeted SAP system is correctly installed.
       when: __sap_patching_register_sapmnt_exe_files.matched | int == 0
 
+    - name: SAP Patching - Kernel - Apply - Set fact if patching can proceed
+      ansible.builtin.set_fact:
+        __sap_patching_fact_kernel_is_ready: true
+      when: __sap_patching_register_sapmnt_exe_files.matched | int > 0
+
+
+# Use previous validation to silently skip hosts without kernel/webdisp present)
+- name: Block for kernel apply execution when global exe directory is present
+  when: __sap_patching_fact_kernel_is_ready | d(false)
+  block:
     - name: SAP Patching - Kernel - Apply - Copy kernel files to global exe directory
       ansible.builtin.copy:
         src: "{{ __sap_patching_fact_kernel_to_apply }}/"
@@ -126,3 +147,12 @@
           FAIL: Kernel patching tasks have failed.
           Please review the error messages above to identify the root cause of the failure
           and re-run the playbook after resolving the issue.
+
+
+- name: SAP Patching - Kernel - Apply - Warning about skipped patching
+  ansible.builtin.debug:
+    msg: |
+      WARN: Kernel patching tasks have been skipped because:
+      - The global exe directory "{{ __sap_patching_fact_kernel_global_exe }}" does not exist as a directory or symlink.
+      This is expected behavior on hosts where the kernel is not installed (e.g. database servers).
+  when: not __sap_patching_fact_kernel_is_ready | d(false)

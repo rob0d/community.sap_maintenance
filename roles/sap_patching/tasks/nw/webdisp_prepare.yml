@@ -71,13 +71,13 @@
     # Moving all files from source could lead to contamination of extracted files.
     - name: SAP Patching - Web Dispatcher - Prepare - Copy identified SAR file to target base
       ansible.builtin.copy:
-        src: "{{ sap_patching_webdisp_source }}/{{ __sap_patching_fact_webdisp_sar }}"
+        src: "{{ __sap_patching_webdisp_source }}/{{ __sap_patching_fact_webdisp_sar }}"
         dest: "{{ __sap_patching_webdisp_base }}/{{ __sap_patching_fact_webdisp_sar }}"
         remote_src: true
         mode: 'preserve'
         owner: "{{ sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
-      when: __sap_patching_webdisp_base != sap_patching_webdisp_source
+      when: __sap_patching_webdisp_base != __sap_patching_webdisp_source
 
 
     - name: SAP Patching - Web Dispatcher - Prepare - Extract web dispatcher SAR file
@@ -185,7 +185,7 @@
 
     - name: SAP Patching - Web Dispatcher - Prepare - Set fact with prepared path for further execution tasks
       ansible.builtin.set_fact:
-        sap_patching_webdisp_to_apply:
+        __sap_patching_fact_webdisp_to_apply:
           "{{ __sap_patching_fact_webdisp_extract_target }}"
 
 

@@ -38,7 +38,7 @@
   vars:
     __file_name: >-
       {{ __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] ~ '_hdblcm_configfile.cfg'
-        if 'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout | d('')
+        if __sap_patching_fact_hdb_hsr_enabled
         else ansible_facts['hostname'] ~ '_hdblcm_configfile.cfg' }}
 
 

@@ -2,6 +2,7 @@
 ---
 
 ### General settings
+
 # The list of tasks that will be executed by this role in the specific order (String).
 # Available options:
 # - Kernel: abap_kernel_prepare, abap_kernel_apply, abap_kernel_restart
@@ -34,6 +35,7 @@ sap_patching_file_group: sapsys
 
 
 ### Kernel patching settings
+
 # The path to base kernel directory where version specific directories will be created during the prepare step (String).
 # Used when 'sap_patching_kernel_files_on_target' is set to 'true'.
 # If 'sap_patching_kernel_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
@@ -88,13 +90,25 @@ sap_patching_kernel_prepare_append_to_version: ''
 
 
 ### HDB client patching settings
-# The path to base HDB client directory where extraction directories will be created during the prepare step (String).
-sap_patching_hdb_client_base: /install/hanadb/client
 
-# The path to directory where the HDB client SAR files are located (String).
-sap_patching_hdb_client_source: "{{ sap_patching_hdb_client_base }}/source"
+# Mandatory: HDB client patching uses 'sap_patching_sap_system_sid' when executing 'hdbinst' command.
 
-# The name of directory either relative (to sap_patching_hdb_client_base) or absolute path to the HDB client (String).
+# The path to base HDB client directory where version specific directories will be created during the prepare step (String).
+# Used when 'sap_patching_hdb_client_files_on_target' is set to 'true'.
+# If 'sap_patching_hdb_client_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_hdb_client_base: ''  # e.g. /install/hana/client
+
+# The path to directory where the HDB client files are located on managed nodes (String).
+# Used when 'sap_patching_hdb_client_files_on_target' is set to 'true'.
+# If 'sap_patching_hdb_client_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_hdb_client_source: ''  # e.g. /install/hana/client/source
+
+# The path to directory where the HDB client files are located on Control node (localhost) (String).
+# Used when 'sap_patching_hdb_client_files_on_target' is set to 'false'.
+# HDB client files will be copied from this path on the control node to 'sap_patching_hdb_client_source' on the managed nodes during prepare step.
+sap_patching_hdb_client_source_local: ''  # e.g. "/install/hana/client/source"
+
+# The name of directory either relative to 'sap_patching_hdb_client_base' or absolute path to the HDB client (String).
 # If not set, the task 'abap_hdb_client_prepare' will populate correct directory,
 # or fall back to 'sap_patching_hdb_client_to_apply_symlink'.
 sap_patching_hdb_client_to_apply: ''
@@ -110,31 +124,44 @@ sap_patching_hdb_client_install_path:
 # This is used if shared client installation is being updated, instead of individual installation.
 # Sets '--sapmnt' parameter for 'hdbinst' command.
 # NOTE: Mutually exclusive with 'sap_patching_hdb_client_install_path', if both are set, the playbook will fail.
-sap_patching_hdb_client_shared_path: ''
+sap_patching_hdb_client_shared_path: ''  # e.g. /usr/sap/hdbclient
 
-# >>> TODO NEED TO DECIDE ON HOW TO HANDLE IT <<<
-# Set which source SAR file location type is used (Boolean).
-# If true, the extracted HDB client source files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
-# If false, the extracted HDB client source files will be copied from the control node to the managed node.
-sap_patching_hdb_client_extracted_shared: true
+# Select whether the HDB client files are already present on the managed nodes (Boolean).
+# If 'true', the HDB client files are already on managed nodes (e.g., pre-staged to NFS or local disk)
+#   and the prepare step will verify files exist and extract them in place.
+# If 'false', the HDB client files are on the control node and must be copied to managed nodes
+#   and the prepare step will copy files from 'sap_patching_hdb_client_source_local' to managed nodes.
+sap_patching_hdb_client_files_on_target: true
 
-# The path to directory where a local copy of extracted HDB client files will be stored (String).
-# These files must be present locally in order to run hdbinst.
-sap_patching_hdb_client_extracted_local_path: /install-local/hanadb/client
+# Select whether the HDB client files will be shared among multiple hosts (Boolean).
+# If 'true', the HDB client files will copied and extracted only once, because target host is expected to be shared.
+# If 'false', the HDB client files will copied and extracted on all target hosts separately.
+# NOTE: Existing shared filesystem is expected to be present and accessible by all hosts if 'true'.
+sap_patching_hdb_client_files_shared: true
 
 
 ### HDB server patching settings
+
 # The SAP HANA Database System ID (SID) (String).
 # NOTE: Must be set if using database with different SID than 'sap_patching_sap_system_sid'.
 sap_patching_hdb_system_sid: ''
 
-# The path to base HDB server directory where extraction directories will be created during the prepare step (String).
-sap_patching_hdb_server_base: /install/hanadb/server
+# The path to base HDB server directory where version specific directories will be created during the prepare step (String).
+# Used when 'sap_patching_hdb_server_files_on_target' is set to 'true'.
+# If 'sap_patching_hdb_server_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_hdb_server_base: ''  # e.g. /install/hana/server
 
-# The path to directory where the HDB server SAR files are located (String).
-sap_patching_hdb_server_source: "{{ sap_patching_hdb_server_base }}/source"
+# The path to directory where the HDB server files are located on managed nodes (String).
+# Used when 'sap_patching_hdb_server_files_on_target' is set to 'true'.
+# If 'sap_patching_hdb_server_files_shared' is 'true', this path should point to a shared filesystem accessible by all hosts.
+sap_patching_hdb_server_source: ''  # e.g. /install/hana/server/source
 
-# The name of directory either relative (to sap_patching_hdb_server_base) or absolute path to the HDB server (String).
+# The path to directory where the HDB server files are located on Control node (localhost) (String).
+# Used when 'sap_patching_hdb_server_files_on_target' is set to 'false'.
+# HDB server files will be copied from this path on the control node to 'sap_patching_hdb_server_source' on the managed nodes during prepare step.
+sap_patching_hdb_server_source_local: ''  # e.g. "/install/hana/server/source"
+
+# The name of directory either relative to 'sap_patching_hdb_server_base' or absolute path to the HDB server (String).
 # If not set, the task 'abap_hdb_server_prepare' will populate correct directory,
 # or fall back to 'sap_patching_hdb_server_to_apply_symlink'.
 sap_patching_hdb_server_to_apply: ''
@@ -143,6 +170,8 @@ sap_patching_hdb_server_to_apply: ''
 # Defaults to '/usr/sap/<SID>/SYS/exe/hdb' which is the default installation path for HDB server.
 sap_patching_hdb_server_install_path:
   "{{ '/usr/sap/' + sap_patching_hdb_system_sid | upper + '/SYS/exe/hdb' }}"
+
+## HDB configfile parameters:
 
 # The name of database user to use for patching (String).
 # This is parameter in hdblcm configfile template.
@@ -170,7 +199,7 @@ sap_patching_hdb_server_activate_admin_user: ''
 # The password of the 'sap_patching_hdb_server_activate_admin_user' user used when activating the SYSTEM user (String).
 sap_patching_hdb_server_activate_admin_password: ''
 
-# Set to 'true' if the database is clustered (currently only Redhat/Suse with Pacemaker are supported), set this to true.
+# Set to 'true' if the database is clustered so Ansible Role can manage cluster maintenance during patching.
 # Cluster steps are available for: Red Hat (pcs), SUSE (crmsh).
 sap_patching_hdb_server_is_clustered: false
 
@@ -179,26 +208,30 @@ sap_patching_hdb_server_is_clustered: false
 # - Clone for 'SAPHanaController' resource agent in SAPHanaSR-angi cluster.
 #   - SUSE: 'mst_SAPHanaCon_H01_HDB90'
 #   - Red Hat: 'cln_SAPHanaCon_H01_HDB90'
-# - Clone for 'SAPHana' resource agent in SAPHanaSR classic cloud.
+# - Clone for 'SAPHana' resource agent in SAPHanaSR classic cluster.
 #   - SUSE: 'mls_SAPHana_H01_HDB90'
 #   - Red Hat: 'cln_SAPHana_H01_HDB90'
 # Default value belongs to 'SAPHanaSR-angi' version with instance number '00',
 # because this role does not use instance number variable.
-sap_patching_hdb_server_clu_hdb_resource_name:
+sap_patching_hdb_server_cluster_hdb_resource_name:
   "cln_SAPHanaCon_{{ sap_patching_hdb_system_sid | upper }}_HDB00"
 
-# >>> TODO NEED TO DECIDE ON HOW TO HANDLE IT <<<
-# Set which source SAR file location type is used (Boolean).
-# If true, the extracted HDB server source files are expected to be present on the local host (e.g. NFS share) following the execution of the prepare step.
-# If false, the extracted HDB server source files will be copied from the Ansible controller to the target host
-sap_patching_hdb_server_extracted_shared: true
+# Select whether the HDB server files are already present on the managed nodes (Boolean).
+# If 'true', the HDB server files are already on managed nodes (e.g., pre-staged to NFS or local disk)
+#   and the prepare step will verify files exist and extract them in place.
+# If 'false', the HDB server files are on the control node and must be copied to managed nodes
+#   and the prepare step will copy files from 'sap_patching_hdb_server_source_local' to managed nodes.
+sap_patching_hdb_server_files_on_target: true
 
-# The path to directory where a local copy of extracted HDB server files will be stored (String).
-# These files must be present locally in order to run hdbinst.
-sap_patching_hdb_server_extracted_local_path: /install-local/hanadb/server
+# Select whether the HDB server files will be shared among multiple hosts (Boolean).
+# If 'true', the HDB server files will copied and extracted only once, because target host is expected to be shared.
+# If 'false', the HDB server files will copied and extracted on all target hosts separately.
+# NOTE: Existing shared filesystem is expected to be present and accessible by all hosts if 'true'.
+sap_patching_hdb_server_files_shared: true
 
 
 ### Host agent patching settings
+
 # Documentation: https://help.sap.com/docs/host-agent/sap-host-agent-doc/sap-host-agent-upgrade?locale=en-US
 
 # The path to base host agent directory where version specific directories will be created during the prepare step (String).
@@ -234,6 +267,7 @@ sap_patching_host_agent_autoupdate_path: ''  # e.g. /install/HostAgentUpdateDir
 sap_patching_host_agent_files_on_target: true
 
 # Select whether the host agent files will be shared among multiple hosts (Boolean).
+# Single purpose variable for presence of patching files on hosts, because host agent is always installed locally.
 # If 'true', the host agent files will copied and extracted only once, because target host is expected to be shared.
 # If 'false', the host agent files will copied and extracted on all target hosts separately.
 # NOTE: Existing shared filesystem is expected to be present and accessible by all hosts if 'true'.
@@ -241,6 +275,7 @@ sap_patching_host_agent_files_shared: true
 
 
 ### Web disp patching settings
+
 # SAP Web Dispatcher System ID (SID) (String).
 # Separate from 'sap_patching_sap_system_sid' because Web Dispatcher can be installed on different SID than ABAP system.
 sap_patching_wdp_system_sid: ''
@@ -280,6 +315,7 @@ sap_patching_webdisp_files_shared: true
 
 
 ### Optional fine tuning variables
+
 # Changing following variables is generally not recommended as they are set to optimal values for most use cases.
 # Change only if you know what you are doing and have specific reason to do so.
 

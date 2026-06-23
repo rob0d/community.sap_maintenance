@@ -12,7 +12,9 @@
       It should be a either empty string (if not required in the execution plan) or a valid SAP system SID (3 characters).
 
 
-# Prepare tasks will create directory if not present, while apply task will fail if not present.
+# Validation of directory existence is not performed here, because:
+# - Prepare tasks will create directory if not present.
+# - Apply task will fail if not present.
 - name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_base' is defined as valid string
   ansible.builtin.assert:
     that:
@@ -24,7 +26,9 @@
       The variable 'sap_patching_kernel_base' is undefined, empty, or invalid.
       It should be an absolute path (starting with /) where kernel SP directories are created.
 
-# Prepare tasks will create directory if not present, while apply task will fail if not present.
+# Validation of directory existence is not performed here, because:
+# - Prepare tasks will create directory if not present.
+#   Required when 'sap_patching_kernel_files_on_target' is 'false'.
 - name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_source' is defined as non-empty string
   ansible.builtin.assert:
     that:

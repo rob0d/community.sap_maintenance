@@ -1,8 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-- name: Set cluster maintenance mode to '{{ __hdb_server_cluster_maintenance_op }}'
+
+- name: SAP Patching - HDB Server - Apply - Red Hat - Set cluster maintenance mode to '{{ __hdb_server_cluster_maintenance_op }}'
   run_once: true
-  ansible.builtin.command: pcs property set maintenance-mode={{ __hdb_server_cluster_maintenance_op }}
+  ansible.builtin.command:
+    cmd: pcs property set maintenance-mode={{ __hdb_server_cluster_maintenance_op }}
   become: true
-  register: __sap_patching_register_hdb_clu_maintenance_output
-  changed_when: __sap_patching_register_hdb_clu_maintenance_output.rc == 0
-  failed_when: "'failed' in __sap_patching_register_hdb_clu_maintenance_output.stderr or __sap_patching_register_hdb_clu_maintenance_output.rc != 0"
+  register: __sap_patching_register_hdb_cluster_maintenance_output
+  changed_when: __sap_patching_register_hdb_cluster_maintenance_output.rc == 0
+  failed_when: "'failed' in __sap_patching_register_hdb_cluster_maintenance_output.stderr or __sap_patching_register_hdb_cluster_maintenance_output.rc != 0"
+
+- name: SAP Patching - HDB Server - Apply - Red Hat - Fail if cluster maintenance mode change has failed
+  ansible.builtin.fail:
+    msg: |
+      FAIL: Change of cluster maintenance mode '{{ __hdb_server_cluster_maintenance_op }}' has failed.
+      Command executed: {{ __sap_patching_register_hdb_cluster_maintenance_output.cmd | d('') }}
+      Stdout: {{ __sap_patching_register_hdb_cluster_maintenance_output.stdout | d('') }}
+      Stderr: {{ __sap_patching_register_hdb_cluster_maintenance_output.stderr | d('') }}
+  when:
+    - "'failed' in __sap_patching_register_hdb_cluster_maintenance_output.stderr
+      or __sap_patching_register_hdb_cluster_maintenance_output.rc != 0"

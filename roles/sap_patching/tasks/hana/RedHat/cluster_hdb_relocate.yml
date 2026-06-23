@@ -1,8 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-- name: Relocate '{{ sap_patching_hdb_server_clu_hdb_resource_name }}'
+
+- name: SAP Patching - HDB Server - Apply - Red Hat - Relocate cluster resource '{{ sap_patching_hdb_server_cluster_hdb_resource_name }}'
   run_once: true
-  ansible.builtin.command: pcs resource move {{ sap_patching_hdb_server_clu_hdb_resource_name }} --autodelete
+  ansible.builtin.command:
+    cmd: pcs resource move {{ sap_patching_hdb_server_cluster_hdb_resource_name }} --autodelete
   become: true
-  register: __sap_patching_register_hdb_clu_relocate_output
-  changed_when: "'resource ''' ~ sap_patching_hdb_server_clu_hdb_resource_name ~ ''' is master on node' in __sap_patching_register_hdb_clu_relocate_output.stdout or __sap_patching_register_hdb_clu_relocate_output.rc == 0"
-  failed_when: "'failed' in __sap_patching_register_hdb_clu_relocate_output.stderr or __sap_patching_register_hdb_clu_relocate_output.rc != 0"
+  register: __sap_patching_register_hdb_cluster_move_output
+  changed_when:
+    - "'resource ''' ~ sap_patching_hdb_server_cluster_hdb_resource_name ~ ''' is master on node'
+      in __sap_patching_register_hdb_cluster_move_output.stdout
+        or __sap_patching_register_hdb_cluster_move_output.rc == 0"
+
+- name: SAP Patching - HDB Server - Apply - Red Hat - Fail if cluster resource relocation has failed
+  ansible.builtin.fail:
+    msg: |
+      FAIL: Relocation of cluster resource '{{ sap_patching_hdb_server_cluster_hdb_resource_name }}' has failed.
+      Command executed: {{ __sap_patching_register_hdb_cluster_move_output.cmd | d('') }}
+      Stdout: {{ __sap_patching_register_hdb_cluster_move_output.stdout | d('') }}
+      Stderr: {{ __sap_patching_register_hdb_cluster_move_output.stderr | d('') }}
+  when:
+    - "'failed' in __sap_patching_register_hdb_cluster_move_output.stderr
+      or __sap_patching_register_hdb_cluster_move_output.rc != 0"

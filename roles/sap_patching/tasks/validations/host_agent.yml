@@ -39,7 +39,9 @@
       The current value '{{ sap_patching_file_group }}' does not correspond to any group on the system.
 
 
-# Prepare tasks will create directory if not present, while apply task will fail if not present.
+# Validation of directory existence is not performed here, because:
+# - Prepare tasks will create directory if not present.
+# - Apply task will fail if not present.
 - name: SAP Patching - Validation - Host Agent - Assert that the variable 'sap_patching_host_agent_base' is defined as valid string
   ansible.builtin.assert:
     that:
@@ -51,7 +53,9 @@
       The variable 'sap_patching_host_agent_base' is undefined, empty, or invalid.
       It should be an absolute path (starting with /) where host agent SAR files are stored and extraction directories are created.
 
-# Prepare tasks will create directory if not present, while apply task will fail if not present.
+# Validation of directory existence is not performed here, because:
+# - Prepare tasks will create directory if not present.
+#   Required when 'sap_patching_host_agent_files_on_target' is 'false'.
 - name: SAP Patching - Validation - Host Agent - Assert that the variable 'sap_patching_host_agent_source' is defined as non-empty string
   ansible.builtin.assert:
     that:

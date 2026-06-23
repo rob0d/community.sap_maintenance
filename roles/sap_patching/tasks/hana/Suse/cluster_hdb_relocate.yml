@@ -1,9 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
-# WARNING: NOT TESTED ON SuSE yet!
-- name: Relocate '{{ sap_patching_hdb_server_clu_hdb_resource_name }}'
+
+# SUSE's 'crmsh' does not have one command for relocation of a resource. It has to be done in two steps:
+# 1. Move the resource to another node (this will create a relocation constraint)
+#    'crm --force resource move <resource_name> <target_node>'
+# 2. Clear the relocation constraint (otherwise the resource will be moved back to the original node after a while)
+#    'crm resource clear <resource_name>'
+
+- name: SAP Patching - HDB Server - Apply - Suse - Relocate cluster resource '{{ sap_patching_hdb_server_cluster_hdb_resource_name }}'
   run_once: true
-  ansible.builtin.command: crm --force resource move {{ sap_patching_hdb_server_clu_hdb_resource_name }} --autodelete
+  ansible.builtin.command:
+    cmd: crm --force resource move {{ sap_patching_hdb_server_cluster_hdb_resource_name }}
   become: true
-  register: __sap_patching_register_hdb_clu_relocate_output
-  changed_when: "'resource ''' ~ sap_patching_hdb_server_clu_hdb_resource_name ~ ''' is master on node' in __sap_patching_register_hdb_clu_relocate_output.stdout or __sap_patching_register_hdb_clu_relocate_output.rc == 0"
-  failed_when: "'failed' in __sap_patching_register_hdb_clu_relocate_output.stderr or __sap_patching_register_hdb_clu_relocate_output.rc != 0"
+  register: __sap_patching_register_hdb_cluster_move_output
+  changed_when:
+    - "'resource ''' ~ sap_patching_hdb_server_cluster_hdb_resource_name ~ ''' is master on node'
+      in __sap_patching_register_hdb_cluster_move_output.stdout
+        or __sap_patching_register_hdb_cluster_move_output.rc == 0"
+
+- name: SAP Patching - HDB Server - Apply - Suse - Fail if cluster resource relocation has failed
+  ansible.builtin.fail:
+    msg: |
+      FAIL: Relocation of cluster resource '{{ sap_patching_hdb_server_cluster_hdb_resource_name }}' has failed.
+      Command executed: {{ __sap_patching_register_hdb_cluster_move_output.cmd | d('') }}
+      Stdout: {{ __sap_patching_register_hdb_cluster_move_output.stdout | d('') }}
+      Stderr: {{ __sap_patching_register_hdb_cluster_move_output.stderr | d('') }}
+  when:
+    - "'failed' in __sap_patching_register_hdb_cluster_move_output.stderr
+      or __sap_patching_register_hdb_cluster_move_output.rc != 0"
+
+- name: SAP Patching - HDB Server - Apply - Suse - Clear relocation constraints for resource '{{ sap_patching_hdb_server_cluster_hdb_resource_name }}'
+  run_once: true
+  ansible.builtin.command:
+    cmd: crm resource clear {{ sap_patching_hdb_server_cluster_hdb_resource_name }}
+  become: true
+  register: __sap_patching_register_hdb_cluster_clear_output
+  changed_when:
+    - "'resource ''' ~ sap_patching_hdb_server_cluster_hdb_resource_name ~ ''' is master on node'
+      in __sap_patching_register_hdb_cluster_clear_output.stdout
+        or __sap_patching_register_hdb_cluster_clear_output.rc == 0"

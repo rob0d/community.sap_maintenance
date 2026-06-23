@@ -1,13 +1,37 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
+# Explanation for validation handling in apply tasks:
+# 1. Patching file validations must be executed and fail if not valid.
+# 2. Apply tasks cannot be skipped, because host agent must be present on all hosts in play.
+
+# Prepare tasks are doing validation already, but apply can be executed without prepare, so validation must happen again.
+- name: SAP Patching - Host Agent - Apply - Stat availability of the base directory
+  ansible.builtin.stat:
+    path: "{{ __sap_patching_host_agent_base }}"
+  register: __sap_patching_register_host_agent_apply_base_stat
+
+- name: SAP Patching - Host Agent - Apply - Fail if user cannot write to base directory
+  ansible.builtin.fail:
+    msg: |
+      FAIL: The path "{{ __sap_patching_host_agent_base }}" does not exist or is not a directory.
+      Please ensure that the path defined in the variable 'sap_patching_host_agent_base' is a directory.
+  when: not (__sap_patching_register_host_agent_apply_base_stat.stat.exists
+          and __sap_patching_register_host_agent_apply_base_stat.stat.isdir)
+
+
+# Load version to apply in this order:
+# 1. If 'sap_patching_host_agent_to_apply' is not empty.
+# 2. If '__sap_patching_fact_host_agent_to_apply' is not defined. We assume prepare was executed.
+# 3. Default symlink 'sap_patching_host_agent_to_apply_symlink'.
 - name: SAP Patching - Host Agent - Apply - Set fact with host agent symlink if not specified to default if not defined or empty
   ansible.builtin.set_fact:
     __sap_patching_fact_host_agent_to_apply: >-
-      {{ sap_patching_host_agent_to_apply_symlink
-        if sap_patching_host_agent_to_apply | string | trim | length == 0
-        else sap_patching_host_agent_to_apply | regex_replace('\\/$', '') }}
-  when: __sap_patching_fact_host_agent_to_apply is not defined
+      {{ sap_patching_host_agent_to_apply | regex_replace('\\/$', '')
+        if sap_patching_host_agent_to_apply | string | trim | length > 0
+        else (__sap_patching_fact_host_agent_to_apply
+          if __sap_patching_fact_host_agent_to_apply is defined
+          else sap_patching_host_agent_to_apply_symlink) }}
 
 - name: SAP Patching - Host Agent - Apply - Set fact with updated host agent path if it is not an absolute path
   ansible.builtin.set_fact:
@@ -66,7 +90,7 @@
 
 
 - name: Block to apply host agent updates - auto update mode
-  run_once: true
+  # run_once cannot be used because host agent is configured locally and SAP Note does not require shared storage for 'DIR_NEW'.
   when: __sap_patching_params.update_mode == 'auto'
   block:
     - name: SAP Patching - Host Agent - Apply - Stat the directory {{ sap_patching_host_agent_autoupdate_path ~ '/.upgrading' }}

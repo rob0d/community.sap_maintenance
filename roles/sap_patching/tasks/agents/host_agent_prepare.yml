@@ -2,16 +2,15 @@
 ---
 
 - name: Block for base directory
-  run_once: "{{ sap_patching_host_agent_files_shared | d(true) }}"
   block:
     - name: SAP Patching - Host Agent - Prepare - Stat availability of the base directory
       ansible.builtin.stat:
-        path: "{{ sap_patching_host_agent_base }}"
+        path: "{{ __sap_patching_host_agent_base }}"
       register: __sap_patching_register_host_agent_prepare_base_stat
 
     - name: SAP Patching - Host Agent - Prepare - Create base directory with user {{ sap_patching_file_owner }}
       ansible.builtin.file:
-        path: "{{ sap_patching_host_agent_base }}"
+        path: "{{ __sap_patching_host_agent_base }}"
         state: directory
         mode: '0755'
         owner: "{{ sap_patching_file_owner }}"
@@ -31,7 +30,7 @@
 
         - name: SAP Patching - Host Agent - Prepare - Stat base directory with user {{ sap_patching_file_owner }}
           ansible.builtin.stat:
-            path: "{{ sap_patching_host_agent_base }}"
+            path: "{{ __sap_patching_host_agent_base }}"
           register: __sap_patching_register_host_agent_prepare_base_user_stat
           # Stat with correct user to check permissions.
           become: true
@@ -50,16 +49,15 @@
 
 
 - name: Block for source directory
-  run_once: "{{ sap_patching_host_agent_files_shared | d(true) }}"
   block:
     - name: SAP Patching - Host Agent - Prepare - Stat availability of the source directory
       ansible.builtin.stat:
-        path: "{{ sap_patching_host_agent_source }}"
+        path: "{{ __sap_patching_host_agent_source }}"
       register: __sap_patching_register_host_agent_prepare_source_stat
 
     - name: SAP Patching - Host Agent - Prepare - Create source directory with user {{ sap_patching_file_owner }}
       ansible.builtin.file:
-        path: "{{ sap_patching_host_agent_source }}"
+        path: "{{ __sap_patching_host_agent_source }}"
         state: directory
         mode: '0755'
         owner: "{{ sap_patching_file_owner }}"
@@ -82,7 +80,7 @@
       block:
         - name: SAP Patching - Host Agent - Prepare - Stat availability of the local source directory
           ansible.builtin.stat:
-            path: "{{ sap_patching_host_agent_source_local }}"
+            path: "{{ __sap_patching_host_agent_source_local }}"
           delegate_to: localhost  # Stat should be executed on control node where the files are located
           register: __sap_patching_register_host_agent_source_local_stat
 
@@ -96,8 +94,8 @@
 
         - name: SAP Patching - Host Agent - Prepare - Copy source files from control node to managed node
           ansible.builtin.copy:
-            src: "{{ sap_patching_host_agent_source_local }}/"  # Trailing slash is required.
-            dest: "{{ sap_patching_host_agent_source }}/"
+            src: "{{ __sap_patching_host_agent_source_local }}/"  # Trailing slash is required.
+            dest: "{{ __sap_patching_host_agent_source }}/"
             remote_src: false  # Copy from control node
             mode: '0755'
             owner: "{{ sap_patching_file_owner }}"
@@ -107,7 +105,7 @@
 # Search for host agent SAR files and extract support package number
 - name: SAP Patching - Host Agent - Prepare - Find SAR files in the source directory (case-insensitive)
   ansible.builtin.find:
-    paths: "{{ sap_patching_host_agent_source }}"
+    paths: "{{ __sap_patching_host_agent_source }}"
     patterns: ['(?i)SAPHOSTAGENT.*\.SAR$']
     use_regex: true
     file_type: file
@@ -183,9 +181,6 @@
       ansible.builtin.fail:
         msg: |
           FAIL: Target host agent directory '{{ __sap_patching_fact_host_agent_extract_target }}' does not exist or is not a directory.
-          {% if __sap_patching_fact_host_agent_version == '' %}
-          Please ensure that the host agent SAR file is present in the source directory '{{ sap_patching_host_agent_source }}'.
-          {% endif %}
       when: not (__sap_patching_register_host_agent_extract_target_stat.stat.exists
               and __sap_patching_register_host_agent_extract_target_stat.stat.isdir)
 

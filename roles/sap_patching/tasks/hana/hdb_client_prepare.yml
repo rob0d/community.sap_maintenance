@@ -1,8 +1,109 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
+- name: Block for base directory
+  block:
+    - name: SAP Patching - HDB Client - Prepare - Stat availability of the base directory
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_hdb_client_base }}"
+      register: __sap_patching_register_hdb_client_prepare_base_stat
+
+    - name: SAP Patching - HDB Client - Prepare - Create base directory with user {{ sap_patching_file_owner }}
+      ansible.builtin.file:
+        path: "{{ __sap_patching_hdb_client_base }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when: not __sap_patching_register_hdb_client_prepare_base_stat.stat.exists
+
+    - name: Block when directory exists
+      when: __sap_patching_register_hdb_client_prepare_base_stat.stat.exists
+      block:
+        - name: SAP Patching - HDB Client - Prepare - Fail if base directory is not a directory
+          ansible.builtin.fail:
+            msg: |
+              FAIL: The path "{{ sap_patching_hdb_client_base }}" exists but it is not a directory.
+              Please ensure that the path defined in the variable 'sap_patching_hdb_client_base' is a directory.
+          when: not (__sap_patching_register_hdb_client_prepare_base_stat.stat.exists
+                  and __sap_patching_register_hdb_client_prepare_base_stat.stat.isdir)
+
+        - name: SAP Patching - HDB Client - Prepare - Stat base directory with user {{ sap_patching_file_owner }}
+          ansible.builtin.stat:
+            path: "{{ __sap_patching_hdb_client_base }}"
+          register: __sap_patching_register_hdb_client_prepare_base_user_stat
+          # Stat with correct user to check permissions.
+          become: true
+          become_user: "{{ sap_patching_file_owner }}"
+
+        - name: SAP Patching - HDB Client - Prepare - Fail if user cannot write to base directory
+          ansible.builtin.fail:
+            msg: |
+              FAIL: User '{{ sap_patching_file_owner }}' does not have write permissions
+              to the directory '{{ sap_patching_hdb_client_base }}'
+              defined in the variable 'sap_patching_hdb_client_base'.
+
+              Ansible cannot create the symlink '{{ sap_patching_hdb_client_to_apply_symlink }}' without write access to this path.
+              Please check the directory permissions (chmod/chown).
+          when: not __sap_patching_register_hdb_client_prepare_base_user_stat.stat.writeable
+
+
+- name: Block for source directory
+  block:
+    - name: SAP Patching - HDB Client - Prepare - Stat availability of the source directory
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_hdb_client_source }}"
+      register: __sap_patching_register_hdb_client_prepare_source_stat
+
+    - name: SAP Patching - HDB Client - Prepare - Create source directory with user {{ sap_patching_file_owner }}
+      ansible.builtin.file:
+        path: "{{ __sap_patching_hdb_client_source }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ sap_patching_file_owner }}"
+        group: "{{ sap_patching_file_group }}"
+      when: not __sap_patching_register_hdb_client_prepare_source_stat.stat.exists
+
+    - name: SAP Patching - HDB Client - Prepare - Fail if source directory is not a directory
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The path "{{ sap_patching_hdb_client_source }}" exists but it is not a directory.
+              Please ensure that the path defined in the variable 'sap_patching_hdb_client_source' is a directory.
+      when: not (__sap_patching_register_hdb_client_prepare_source_stat.stat.exists
+              and __sap_patching_register_hdb_client_prepare_source_stat.stat.isdir)
+
+
+    # Copy to multiple targets can saturate the control node and the network.
+    # NOTE: Possible to add 'throttle: 1' to limit to one copy at a time, but it will slow down the process significantly.
+    - name: Block for local source directory
+      when: not sap_patching_hdb_client_files_on_target
+      block:
+        - name: SAP Patching - HDB Client - Prepare - Stat availability of the local source directory
+          ansible.builtin.stat:
+            path: "{{ __sap_patching_hdb_client_source_local }}"
+          delegate_to: localhost  # Stat should be executed on control node where the files are located
+          register: __sap_patching_register_hdb_client_source_local_stat
+
+        - name: SAP Patching - HDB Client - Prepare - Fail if local source directory does not exist
+          ansible.builtin.fail:
+            msg: |
+              FAIL: The path "{{ sap_patching_hdb_client_source_local }}" does not exist or is not a directory.
+              Please ensure that the HDB client source path is correct and accessible.
+          when: not (__sap_patching_register_hdb_client_source_local_stat.stat.exists
+                  and __sap_patching_register_hdb_client_source_local_stat.stat.isdir)
+
+        - name: SAP Patching - HDB Client - Prepare - Copy source files from control node to managed node
+          ansible.builtin.copy:
+            src: "{{ __sap_patching_hdb_client_source_local }}/"  # Trailing slash is required.
+            dest: "{{ __sap_patching_hdb_client_source }}/"
+            remote_src: false  # Copy from control node
+            mode: '0755'
+            owner: "{{ sap_patching_file_owner }}"
+            group: "{{ sap_patching_file_group }}"
+
+
 # Search for HDB client SAR files and extract support package number
-- name: SAP Patching - HDB Client - Prepare - Find .sar files in the HDB client source directory (case-insensitive)
+- name: SAP Patching - HDB Client - Prepare - Find SAR files in the source directory (case-insensitive)
   ansible.builtin.find:
     paths: "{{ __sap_patching_hdb_client_source }}"
     patterns: ['(?i)IMDB_CLIENT.*\.SAR$']
@@ -29,15 +130,38 @@
             | last
           }}
 
+    # Example: File 'IMDB_CLIENT20_028_17-80002082.SAR' results in version '20_028_17'.
     - name: SAP Patching - HDB Client - Prepare - Set fact with extracted client version from SAR file
       ansible.builtin.set_fact:
-        __sap_patching_fact_hdb_client_version:
-          "{{ __sap_patching_fact_hdb_client_sar | regex_search('(?i)IMDB_CLIENT([_\\d]+)-\\d+.SAR', '\\1') | list | last }}"
+        __sap_patching_fact_hdb_client_version: >-
+          {{
+            __sap_patching_fact_hdb_client_sar
+              | regex_search('(?i)IMDB_CLIENT([0-9_]+)-[0-9]{8}\.SAR', '\1')
+              | d([], true)
+              | first
+              | d('', true)
+          }}
+
+    - name: SAP Patching - HDB Client - Prepare - Fail if no HDB client version could be extracted from SAR file name
+      ansible.builtin.fail:
+        msg: |
+          FAIL: No HDB client version could be extracted from SAR file name '{{ __sap_patching_fact_hdb_client_sar }}'.
+          Please ensure that the SAR file name follows the expected pattern.
+          Example: File 'IMDB_CLIENT20_028_17-80002082.SAR' results in version '20_028_17'
+      when: __sap_patching_fact_hdb_client_version == ''
+
+    - name: SAP Patching - HDB Client - Prepare - Show version extracted from SAR file name
+      ansible.builtin.debug:
+        msg: >-
+          INFO: HDB client version extracted from SAR file name '{{ __sap_patching_fact_hdb_client_sar }}'
+          is '{{ __sap_patching_fact_hdb_client_version }}'.
+      when: __sap_patching_fact_hdb_client_version != ''
 
     - name: SAP Patching - HDB Client - Prepare - Set fact with the target HDB client directory
       ansible.builtin.set_fact:
         __sap_patching_fact_hdb_client_extract_target:
           "{{ __sap_patching_hdb_client_base }}/{{ __sap_patching_hdb_client_extracted }}_{{ __sap_patching_fact_hdb_client_version }}"
+
 
     - name: SAP Patching - HDB Client - Prepare - Create extraction target HDB client directory
       ansible.builtin.file:
@@ -71,6 +195,7 @@
         __direction: "from {{ __sap_patching_hdb_client_source }} to {{ __sap_patching_hdb_client_base }}"
       when: __sap_patching_hdb_client_base != __sap_patching_hdb_client_source
       changed_when: true
+
 
     - name: SAP Patching - HDB Client - Prepare - Extract HDB client SAR file to the target
       ansible.builtin.command:
@@ -121,5 +246,5 @@
 
     - name: SAP Patching - HDB Client - Prepare - Set fact with prepared path for further execution tasks
       ansible.builtin.set_fact:
-        sap_patching_hdb_client_to_apply:
+        __sap_patching_fact_hdb_client_to_apply:
           "{{ __sap_patching_fact_hdb_client_extract_target }}/SAP_HANA_CLIENT"

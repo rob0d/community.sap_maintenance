@@ -283,7 +283,7 @@
           FAIL: Mismatch between kernel patch number extracted from disp+work and expected patch number from SAR file names.
           File name patch number: {{ __sap_patching_fact_kernel_pn }}
           Disp+work patch number: {{ __sap_patching_fact_kernel_patch_dw }}
-        when: not ((__sap_patching_fact_kernel_patch_dw | int) == (__sap_patching_fact_kernel_pn | int))
+      when: not ((__sap_patching_fact_kernel_patch_dw | int) == (__sap_patching_fact_kernel_pn | int))
 
 
     # We copy first, then remove, because Ansible does not have builtin move module.
@@ -338,13 +338,9 @@
       become_user: "{{ sap_patching_file_owner }}"
       when: not __sap_patching_kernel_append_mode
 
-
-    # This needs to be last so that sap_patching_kernel_to_apply is set correctly
-    # as the symlink step above needs the default value
-    # NOTE: This will not override user defined variable due to variable precedence!
     - name: SAP Patching - Kernel - Prepare - Set fact with prepared path for further execution tasks
       ansible.builtin.set_fact:
-        sap_patching_kernel_to_apply:
+        __sap_patching_fact_kernel_to_apply:
           "{{ __sap_patching_fact_kernel_extract_target }}/{{ __sap_patching_kernel_extracted }}"
 
 
