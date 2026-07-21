@@ -8,15 +8,8 @@
       - sap_patching_sap_system_sid is string
       - sap_patching_sap_system_sid | trim | length == 3
     fail_msg: |
-      {% if sap_patching_sap_system_sid is not defined %}
-        FAIL: The 'sap_patching_sap_system_sid' variable must be defined as non-empty string.
-      {% elif sap_patching_sap_system_sid is not string %}
-        FAIL: The 'sap_patching_sap_system_sid' variable must be a string,
-        but it is of type '{{ sap_patching_sap_system_sid | type_debug }}'.
-      {% else %}
-        FAIL: The 'sap_patching_sap_system_sid' variable must be 3 letter string.
-      {% endif %}
-
+      The variable 'sap_patching_sap_system_sid' is undefined, not 3 characters long or invalid.
+      It should be a valid SAP system SID string of 3 characters.
 
 - name: SAP Patching - Validation - ABAP - Set fact that validation was completed
   ansible.builtin.set_fact:

@@ -39,24 +39,6 @@
       "{{ __sap_patching_host_agent_base }}/{{ __sap_patching_fact_host_agent_to_apply }}"
   when: not __sap_patching_fact_host_agent_to_apply.startswith('/')
 
-# # Local copy of extracted files if not on shared storage
-# - name: Copy host agent to be applied to a local directory if not present on a shared one
-#   when: not sap_patching_host_agent_extracted_shared | bool
-#   ansible.builtin.copy:
-#     src: "{{ sap_patching_host_agent_to_apply }}/"
-#     dest: "{{ sap_patching_host_agent_extracted_local_path }}"
-#     remote_src: "{{ sap_patching_host_agent_extracted_shared | bool }}"
-#     owner: "{{ sap_patching_sap_system_sid | lower }}adm"
-#     group: sapsys
-#     mode: '0755'
-#     directory_mode: '0755'
-#   changed_when: true
-
-# - name: Overriding host agent to apply path settings with extracted local path as it's not present on a shared one and it's just been copied here
-#   when: not sap_patching_host_agent_extracted_shared | bool
-#   ansible.builtin.set_fact:
-#     sap_patching_host_agent_to_apply: "{{ sap_patching_host_agent_extracted_local_path }}"
-
 
 # Prepare tasks prepared all files on all managed nodes, or on first one with shared filesystem.
 # Be it either of those, we still have to ensure that all hosts have access to these files.

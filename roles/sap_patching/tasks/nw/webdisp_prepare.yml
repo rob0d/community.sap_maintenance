@@ -1,15 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-# # Update variables to pass into shared tasks.
-# - name: SAP Patching - Web Dispatcher - Prepare - Set fact with 'webdisp' specific variables
-#   ansible.builtin.set_fact:
-#     __sap_patching_fact_kernel_base: "{{ __sap_patching_webdisp_base }}"
-#     __sap_patching_fact_kernel_source: "{{ __sap_patching_webdisp_source }}"
-#     __sap_patching_fact_kernel_source_local: "{{ __sap_patching_webdisp_source_local }}"
-#     __sap_patching_fact_kernel_files_shared: "{{ sap_patching_webdisp_files_shared | d(true) }}"
-#     __sap_patching_fact_kernel_type: webdisp
-#     __sap_patching_fact_kernel_find_patterns: ['(?i)sapwebdisp_.*\.sar$']
+# Facts are not set here to ensure that they do not influence other plan steps,
+# instead they are set temporarily in vars section of include_tasks.
 
 - name: SAP Patching - Web Dispatcher - Prepare - Execute shared tasks for kernel prepare
   ansible.builtin.include_tasks:
@@ -18,7 +11,8 @@
     __sap_patching_fact_kernel_base: "{{ __sap_patching_webdisp_base }}"
     __sap_patching_fact_kernel_source: "{{ __sap_patching_webdisp_source }}"
     __sap_patching_fact_kernel_source_local: "{{ __sap_patching_webdisp_source_local }}"
-    __sap_patching_fact_kernel_files_shared: "{{ sap_patching_webdisp_files_shared | d(true) }}"
+    __sap_patching_fact_kernel_files_on_target: "{{ sap_patching_webdisp_files_on_target }}"
+    __sap_patching_fact_kernel_files_shared: "{{ sap_patching_webdisp_files_shared }}"
     __sap_patching_fact_kernel_type: webdisp
     __sap_patching_fact_kernel_find_patterns: ['(?i)sapwebdisp_.*\.sar$']
 

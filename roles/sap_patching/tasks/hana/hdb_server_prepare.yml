@@ -184,11 +184,12 @@
               and __sap_patching_register_hdb_server_extract_target_stat.stat.isdir)
 
     # Shell is used instead of copy/move modules to ensure we can use globbing
-    # to move file in case they are not in capitals as expected.
+    # to copy file in case they are not in capitals as expected.
+    # Copy is used to ensure we do not remove source files.
     - name: SAP Patching - HDB Server - Prepare - Move all files {{ __direction }}
       ansible.builtin.shell:
         cmd: >-
-          mv '{{ __sap_patching_hdb_server_source }}'/[Ii][Mm][Dd][Bb]_[Ss][Ee][Rr][Vv][Ee][Rr]*
+          cp '{{ __sap_patching_hdb_server_source }}'/[Ii][Mm][Dd][Bb]_[Ss][Ee][Rr][Vv][Ee][Rr]*
           '{{ __sap_patching_hdb_server_base }}/'
       vars:
         __direction: "from {{ __sap_patching_hdb_server_source }} to {{ __sap_patching_hdb_server_base }}"

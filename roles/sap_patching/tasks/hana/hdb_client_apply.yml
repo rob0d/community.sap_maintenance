@@ -152,7 +152,7 @@
   args:
     chdir: "{{ __sap_patching_fact_hdb_client_to_apply }}"
   become: true
-  become_user: "{{ sap_patching_sap_system_sid | lower }}adm"
+  become_user: "{{ __sap_patching_fact_sidadm_user }}"
   changed_when:
     - "'Installation done' in __sap_patching_register_hdb_client_hdbinst_output.stdout
       and __sap_patching_register_hdb_client_hdbinst_output.rc == 0"

@@ -190,14 +190,19 @@ sap_patching_hdb_server_install_path:
 sap_patching_hdb_server_activate_system_user: true
 
 # The name of SAP HANA admin user store key (hdbuserstore) to use when activating the SYSTEM user (String).
+# Must be key with permissions to activate SYSTEM user, but not SYSTEM user itself.
 # If not set, falls back to 'sap_patching_hdb_server_activate_admin_user' and 'sap_patching_hdb_server_activate_admin_password'.
 sap_patching_hdb_server_activate_admin_userstore_key: ''
 
 # The name of SAP HANA admin user to use when activating the SYSTEM user (String).
-sap_patching_hdb_server_activate_admin_user: ''
+# Required when 'sap_patching_hdb_server_activate_system_user' is 'true',
+# but 'sap_patching_hdb_server_activate_admin_userstore_key' is not set.
+# sap_patching_hdb_server_activate_admin_user: ''
 
 # The password of the 'sap_patching_hdb_server_activate_admin_user' user used when activating the SYSTEM user (String).
-sap_patching_hdb_server_activate_admin_password: ''
+# Required when 'sap_patching_hdb_server_activate_system_user' is 'true',
+# but 'sap_patching_hdb_server_activate_admin_userstore_key' is not set.
+# sap_patching_hdb_server_activate_admin_password: ''
 
 # Set to 'true' if the database is clustered so Ansible Role can manage cluster maintenance during patching.
 # Cluster steps are available for: Red Hat (pcs), SUSE (crmsh).

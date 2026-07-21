@@ -1,11 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-# # Update variables to pass into shared tasks.
-# - name: SAP Patching - Kernel - Saproot - Set fact with 'abap_kernel' specific variables
-#   ansible.builtin.set_fact:
-#     __sap_patching_fact_sap_system_sid: "{{ sap_patching_sap_system_sid | upper }}"
-#     __sap_patching_fact_sidadm_user: "{{ sap_patching_sap_system_sid | lower }}adm"
+# Facts are not set here to ensure that they do not influence other plan steps,
+# instead they are set temporarily in vars section of include_tasks.
 
 - name: SAP Patching - Kernel - Saproot - Execute shared tasks for kernel saproot
   ansible.builtin.include_tasks:

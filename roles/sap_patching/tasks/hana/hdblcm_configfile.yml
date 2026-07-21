@@ -5,7 +5,7 @@
 
 - name: SAP Patching - hdblcm configfile - Get hdblcm version output
   ansible.builtin.command:
-    cmd: "{{ sap_patching_hdb_server_to_apply }}/hdblcm --version"
+    cmd: "{{ __sap_patching_fact_hdb_server_to_apply }}/hdblcm --version"
   register: __sap_patching_register_hdb_version_output
   changed_when: false
   ignore_errors: true
@@ -32,9 +32,9 @@
 - name: SAP Patching - hdblcm configfile - Set fact with config file location
   ansible.builtin.set_fact:
     __sap_patching_fact_hdb_hdblcm_configfile:
-      "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_fact_hdb_hdblcm_git_hash_version }}/{{ __file_name }}"
+      "{{ __sap_patching_fact_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_fact_hdb_hdblcm_git_hash_version }}/{{ __file_name }}"
     __sap_patching_fact_hdb_hdblcm_configfile_dir:
-      "{{ sap_patching_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_fact_hdb_hdblcm_git_hash_version }}"
+      "{{ __sap_patching_fact_hdb_server_to_apply }}/ansible_templates/{{ __sap_patching_fact_hdb_hdblcm_git_hash_version }}"
   vars:
     __file_name: >-
       {{ __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_hdb_hsr_site[0]] ~ '_hdblcm_configfile.cfg'
@@ -81,7 +81,7 @@
     - name: SAP Patching - hdblcm configfile - Create the hdblcm configfile template '{{ __sap_patching_fact_hdb_hdblcm_configfile ~ '.template' }}'
       ansible.builtin.command:
         cmd: >-
-          {{ sap_patching_hdb_server_to_apply }}/hdblcm
+          {{ __sap_patching_fact_hdb_server_to_apply }}/hdblcm
           --dump_configfile_template={{ __sap_patching_fact_hdb_hdblcm_configfile }}.template
       register: __sap_patching_register_hdb_hdblcm_configfile_template
       changed_when: false

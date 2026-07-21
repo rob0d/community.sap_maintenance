@@ -86,7 +86,7 @@
     # Be it either of those, we still have to ensure that all hosts have access to these files.
     - name: SAP Patching - HDB Server - Apply - Stat availability of extracted HDB server directory
       ansible.builtin.stat:
-        path: "{{ sap_patching_hdb_server_to_apply }}"
+        path: "{{ __sap_patching_fact_hdb_server_to_apply }}"
       register: __sap_patching_register_hdb_server_to_apply_stat
 
     - name: SAP Patching - HDB Server - Apply - Fail if HDB server path does not exist and is not a directory or symlink
@@ -99,7 +99,7 @@
               or not (__sap_patching_register_hdb_server_to_apply_stat.stat.isdir
                 or __sap_patching_register_hdb_server_to_apply_stat.stat.islnk)
 
-    - name: SAP Patching - HDB Server - Apply - Check the content of {{ sap_patching_hdb_server_to_apply }}
+    - name: SAP Patching - HDB Server - Apply - Check the content of {{ __sap_patching_fact_hdb_server_to_apply }}
       ansible.builtin.find:
         paths: "{{ __sap_patching_fact_hdb_server_to_apply }}"
         file_type: any
@@ -120,12 +120,12 @@
     - name: SAP Patching - HDB Server - Apply - Check System Replication Status
       ansible.builtin.shell:
         cmd: >-
-          source /usr/sap/{{ sap_patching_hdb_system_sid | upper }}/home/.sapenv.sh &&
-          {{ sap_patching_hdb_server_install_path }}/hdbnsutil \
+          source /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/home/.sapenv.sh &&
+          {{ sap_patching_hdb_server_install_path }}/hdbnsutil
           -sr_state
           -sapcontrol=1
       become: true
-      become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
+      become_user: "{{ __sap_patching_fact_sidadm_user }}"
       register: __sap_patching_register_hdb_hsr_sr_state
       changed_when: false
 
@@ -144,7 +144,7 @@
     - name: SAP Patching - HDB Server - Apply - HSR - Set fact if HSR is enabled
       ansible.builtin.set_fact:
         __sap_patching_fact_hdb_hsr_enabled: >-
-          {{ true if 'mode=none' not in __sap_patching_register_hdb_hsr_srstate.stdout else false }}
+          {{ true if 'mode=none' not in __sap_patching_register_hdb_hsr_sr_state.stdout else false }}
 
     # Since 'sr_state' can return different modes, we check for all other than 'none'. Examples:
     # mode=primary
@@ -174,42 +174,50 @@
               {%- endfor -%}
               {{ pairs_list | items2dict }}
 
-
-        - name: SAP Patching - HDB Server - Apply - HSR - Activate SAP HANA SYSTEM user
-          ansible.builtin.command:
-            cmd: >-
-              /usr/sap/{{ sap_patching_hdb_system_sid }}/SYS/exe/hdb/hdbsql
-              -d SYSTEMDB
-              -quiet -x -a
-              {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key
-                if sap_patching_hdb_server_activate_admin_userstore_key | d('',true) | length > 0 else '' }}
-              {{ '-u ' + sap_patching_hdb_server_activate_admin_user
-                if sap_patching_hdb_server_activate_admin_user | d('',true) | length > 0 else '' }}
-              {{ '-p ''' + sap_patching_hdb_server_activate_admin_password + ''''
-                if sap_patching_hdb_server_activate_admin_password | d('',true) | length > 0 else '' }}
-              "ALTER USER {{ sap_patching_hdb_server_cf_system_user
-                if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
-          register: __sap_patching_register_hdb_server_activate_system_output
-          become: true
-          become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
+        - name: Block for SYSTEM user activation
           when:
             - sap_patching_hdb_server_activate_system_user
             # Ensure that it is executed only on primary node, which should be node with lowest site tier value.
             # 'last' returns lowest SiteTier value and 'first' returns hostname.
             - __sap_patching_fact_hdb_hsr_site_to_host[__sap_patching_fact_hdb_hsr_sites | last | first ] == ansible_facts['hostname']
             # - __sap_patching_params.update_mode != 'prepare'
-          changed_when: "__sap_patching_register_hdb_server_activate_system_output.rc == 0"
+          block:
 
-        - name: SAP Patching - HDB Server - Apply - HSR - Fail if SYSTEM user activation failed
-          ansible.builtin.fail:
-            msg: |
-              FAIL: Activation of SAP HANA SYSTEM user failed.
-              Command executed: {{ __sap_patching_register_hdb_server_activate_system_output.cmd | d('') }}
-              Stdout: {{ __sap_patching_register_hdb_server_activate_system_output.stdout | d('') }}
-              Stderr: {{ __sap_patching_register_hdb_server_activate_system_output.stderr | d('') }}
-          when:
-            - "'ERROR' in __sap_patching_register_hdb_server_activate_system_output.stderr
-                or __sap_patching_register_hdb_server_activate_system_output.rc != 0"
+            # If hdbuserstore key is not provided and default key is not set,
+            # then hdbsql will wait for credentials in interactive mode, which is solved by timeout.
+            - name: SAP Patching - HDB Server - Apply - HSR - Activate SAP HANA SYSTEM user
+              ansible.builtin.command:
+                cmd: >-
+                  timeout 30
+                  /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/hdb/hdbsql
+                  -d SYSTEMDB
+                  -quiet -x -a
+                  {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key
+                    if sap_patching_hdb_server_activate_admin_userstore_key | d('',true) | length > 0 else '' }}
+                  {{ '-u ' + sap_patching_hdb_server_activate_admin_user
+                    if sap_patching_hdb_server_activate_admin_user | d('',true) | length > 0 else '' }}
+                  {{ '-p ''' + sap_patching_hdb_server_activate_admin_password + ''''
+                    if sap_patching_hdb_server_activate_admin_password | d('',true) | length > 0 else '' }}
+                  "ALTER USER {{ sap_patching_hdb_server_cf_system_user
+                    if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
+              register: __sap_patching_register_hdb_server_activate_system_output
+              become: true
+              become_user: "{{ __sap_patching_fact_sidadm_user }}"
+              changed_when: "__sap_patching_register_hdb_server_activate_system_output.rc == 0"
+              ignore_errors: true
+
+            # run_once allows failure for all hosts, regardless of block restricted to one host.
+            - name: SAP Patching - HDB Server - Apply - HSR - Fail if SYSTEM user activation failed
+              run_once: true
+              ansible.builtin.fail:
+                msg: |
+                  FAIL: Activation of SAP HANA SYSTEM user failed.
+                  Command executed: {{ __sap_patching_register_hdb_server_activate_system_output.cmd | d('') }}
+                  Stdout: {{ __sap_patching_register_hdb_server_activate_system_output.stdout | d('') }}
+                  Stderr: {{ __sap_patching_register_hdb_server_activate_system_output.stderr | d('') }}
+              when:
+                - "'ERROR' in __sap_patching_register_hdb_server_activate_system_output.stderr | d('')
+                    or __sap_patching_register_hdb_server_activate_system_output.rc != 0"
 
 
         - name: SAP Patching - HDB Server - Apply - HSR - Set fact with the initial cluster relocation status
@@ -251,12 +259,12 @@
             - name: SAP Patching - HDB Server - Apply - HSR - Check System Replication Status after patching
               ansible.builtin.shell:
                 cmd: >-
-                  source /usr/sap/{{ sap_patching_hdb_system_sid | upper }}/home/.sapenv.sh &&
-                  {{ sap_patching_hdb_server_install_path }}/hdbnsutil \
+                  source /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/home/.sapenv.sh &&
+                  {{ sap_patching_hdb_server_install_path }}/hdbnsutil
                   -sr_state
                   -sapcontrol=1
               become: true
-              become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
+              become_user: "{{ __sap_patching_fact_sidadm_user }}"
               register: __sap_patching_register_hdb_hsr_sr_state_3
               changed_when: false
               failed_when: "'SAPCONTROL-OK' not in __sap_patching_register_hdb_hsr_sr_state_3.stdout or __sap_patching_register_hdb_hsr_sr_state_3.rc != 0"
@@ -301,7 +309,7 @@
             - name: SAP Patching - HDB Server - Apply - HSR - Deactivate HANA SYSTEM user
               ansible.builtin.command:
                 cmd: >-
-                  /usr/sap/{{ sap_patching_hdb_system_sid }}/SYS/exe/hdb/hdbsql
+                  /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/hdb/hdbsql
                   -d SYSTEMDB
                   -quiet -x -a
                   {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key
@@ -314,7 +322,7 @@
                     if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} DEACTIVATE"
               register: __sap_patching_register_hdb_server_deactivate_system_output
               become: true
-              become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
+              become_user: "{{ __sap_patching_fact_sidadm_user }}"
               when:
                 # Ensure that it is executed only on primary node, which should be node with lowest site tier value.
                 # 'last' returns lowest SiteTier value and 'first' returns hostname.
@@ -339,7 +347,7 @@
         - name: SAP Patching - HDB Server - Apply - Activate HANA SYSTEM user
           ansible.builtin.command:
             cmd: >-
-              /usr/sap/{{ sap_patching_hdb_system_sid }}/SYS/exe/hdb/hdbsql
+              /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/hdb/hdbsql
               -d SYSTEMDB
               -quiet -x -a
               {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key
@@ -352,7 +360,7 @@
                 if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} ACTIVATE"
           register: __sap_patching_register_hdb_server_activate_system_output
           become: true
-          become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
+          become_user: "{{ __sap_patching_fact_sidadm_user }}"
           when: sap_patching_hdb_server_activate_system_user
           changed_when: "__sap_patching_register_hdb_server_activate_system_output.rc == 0"
 
@@ -378,7 +386,7 @@
         - name: SAP Patching - HDB Server - Apply - Deactivate HANA SYSTEM user
           ansible.builtin.command:
             cmd: >-
-              /usr/sap/{{ sap_patching_hdb_system_sid }}/SYS/exe/hdb/hdbsql
+              /usr/sap/{{ __sap_patching_fact_sap_system_sid }}/SYS/exe/hdb/hdbsql
               -d SYSTEMDB
               -quiet -x -a
               {{ '-U ' + sap_patching_hdb_server_activate_admin_userstore_key
@@ -391,7 +399,7 @@
                 if sap_patching_hdb_server_cf_system_user | d('',true) | length > 0 else 'SYSTEM' }} DEACTIVATE"
           register: __sap_patching_register_hdb_server_deactivate_system_output
           become: true
-          become_user: "{{ sap_patching_hdb_system_sid | lower }}adm"
+          become_user: "{{ __sap_patching_fact_sidadm_user }}"
           when: sap_patching_hdb_server_activate_system_user
           changed_when: "__sap_patching_register_hdb_server_deactivate_system_output.rc == 0"
 

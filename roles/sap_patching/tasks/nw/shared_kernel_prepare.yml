@@ -88,9 +88,12 @@
 
 
     # Copy to multiple targets can saturate the control node and the network.
-    # NOTE: Possible to add 'throttle: 1' to limit to one copy at a time, but it will slow down the process significantly.
+    # Only run once if managed nodes share the same directory.
+    # Limit to one copy at a time to avoid saturating the control node and network.
     - name: Block for local source directory
-      when: not sap_patching_kernel_files_on_target
+      run_once: "{{ __sap_patching_fact_kernel_files_shared }}"
+      throttle: 1
+      when: not __sap_patching_fact_kernel_files_on_target
       block:
         - name: SAP Patching - Kernel - Prepare - Stat availability of the local source directory
           ansible.builtin.stat:
