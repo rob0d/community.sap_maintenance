@@ -49,11 +49,12 @@
               to the directory '{{ __sap_patching_fact_kernel_base }}'
               {% if __sap_patching_fact_kernel_type == 'abap_kernel' %}
               defined in the variable 'sap_patching_kernel_base'.
+              Symlink '{{ sap_patching_kernel_to_apply_symlink }}'
               {% else %}
               defined in the variable 'sap_patching_webdisp_base'.
+              Symlink '{{ sap_patching_webdisp_to_apply_symlink }}'
               {% endif %}
-
-              Ansible cannot create the symlink '{{ __sap_patching_fact_kernel_to_apply_symlink }}' without write access to this path.
+              cannot be created without write access to this path.
               Please check the directory permissions (chmod/chown).
           when: not __sap_patching_register_kernel_prepare_base_user_stat.stat.writeable
 
@@ -88,8 +89,9 @@
 
 
     # Copy to multiple targets can saturate the control node and the network.
-    # Only run once if managed nodes share the same directory.
-    # Limit to one copy at a time to avoid saturating the control node and network.
+    # 'run_once' here is the only scoping for the copy, because the prepare step itself is not
+    # run_once - directory and permission checks must run on every host. Do not remove it.
+    # 'throttle' limits to one copy at a time when files are copied to every host separately.
     - name: Block for local source directory
       run_once: "{{ __sap_patching_fact_kernel_files_shared }}"
       throttle: 1

@@ -19,8 +19,9 @@ __sap_patching_exec_def:
       - kernel
     where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
     vars:
-    # Variable defines if source or base directories are shared, thus available on all hosts in play.
-    run_once: "{{ sap_patching_kernel_files_shared | d(true) }}"
+    # Directory and permission checks must run on every host, so the step itself is not run_once.
+    # 'sap_patching_kernel_files_shared' is applied on task level to the copy and extract blocks only.
+    run_once: false
 
   abap_kernel_apply:
     file: nw/abap_kernel_apply.yml
@@ -29,8 +30,9 @@ __sap_patching_exec_def:
       - kernel
     where: "{% if 'nwas_abap_ascs' in group_names %}true{% else %}false{% endif %}"
     vars:
-    # Patching is executed on global exe, which is shared by design.
-    run_once: true
+    # Global exe detection must run on every host, so the step itself is not run_once.
+    # Patching of the global exe directory is limited on task level to the first host where the kernel was found.
+    run_once: false
 
   abap_kernel_restart:
     file: nw/abap_kernel_restart.yml
@@ -148,8 +150,9 @@ __sap_patching_exec_def:
       - webdisp
     where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
     vars:
-    # Variable defines if source or base directories are shared, thus available on all hosts in play.
-    run_once: "{{ sap_patching_webdisp_files_shared | d(true) }}"
+    # Directory and permission checks must run on every host, so the step itself is not run_once.
+    # 'sap_patching_webdisp_files_shared' is applied on task level to the copy and extract blocks only.
+    run_once: false
 
   webdisp_apply:
     file: nw/webdisp_apply.yml
@@ -157,6 +160,7 @@ __sap_patching_exec_def:
       - webdisp
     where: "{% if 'webdisp_nodes' in group_names %}true{% else %}false{% endif %}"
     vars:
+    # Every Web Dispatcher host has its own global exe directory, so all of them are patched.
     run_once: false
 
   webdisp_restart:

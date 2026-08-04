@@ -26,9 +26,9 @@
 - name: SAP Patching - Validation - HDB Server - Set fact with the system SID to be used for HANA
   ansible.builtin.set_fact:
     __sap_patching_fact_sap_system_sid:
-      "{{ sap_patching_hdb_system_sid | upper | d(sap_patching_sap_system_sid | upper) }}"
+      "{{ (sap_patching_hdb_system_sid | d(sap_patching_sap_system_sid)) | upper }}"
     __sap_patching_fact_sidadm_user:
-      "{{ sap_patching_hdb_system_sid | upper | d(sap_patching_sap_system_sid | upper) }}adm"
+      "{{ (sap_patching_hdb_system_sid | d(sap_patching_sap_system_sid)) | lower }}adm"
 
 
 # Validation of directory existence is not performed here, because:

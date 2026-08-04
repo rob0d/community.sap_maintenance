@@ -17,6 +17,7 @@
     - "'resource ''' ~ sap_patching_hdb_server_cluster_hdb_resource_name ~ ''' is master on node'
       in __sap_patching_register_hdb_cluster_move_output.stdout
         or __sap_patching_register_hdb_cluster_move_output.rc == 0"
+  failed_when: false  # Fail is handled in the next task using '.rc' instead of '.failed'.
 
 - name: SAP Patching - HDB Server - Apply - Suse - Fail if cluster resource relocation has failed
   ansible.builtin.fail:
@@ -39,3 +40,15 @@
     - "'resource ''' ~ sap_patching_hdb_server_cluster_hdb_resource_name ~ ''' is master on node'
       in __sap_patching_register_hdb_cluster_clear_output.stdout
         or __sap_patching_register_hdb_cluster_clear_output.rc == 0"
+  failed_when: false  # Fail is handled in the next task using '.rc' instead of '.failed'.
+
+- name: SAP Patching - HDB Server - Apply - Suse - Fail if cluster resource clear has failed
+  ansible.builtin.fail:
+    msg: |
+      FAIL: Clearing of cluster resource '{{ sap_patching_hdb_server_cluster_hdb_resource_name }}' has failed.
+      Command executed: {{ __sap_patching_register_hdb_cluster_clear_output.cmd | d('') }}
+      Stdout: {{ __sap_patching_register_hdb_cluster_clear_output.stdout | d('') }}
+      Stderr: {{ __sap_patching_register_hdb_cluster_clear_output.stderr | d('') }}
+  when:
+    - "'failed' in __sap_patching_register_hdb_cluster_clear_output.stderr
+      or __sap_patching_register_hdb_cluster_clear_output.rc != 0"

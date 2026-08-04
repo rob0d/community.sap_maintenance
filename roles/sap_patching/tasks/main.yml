@@ -1,11 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-- name: SAP Patching - Validate variables
-  ansible.builtin.include_tasks:
-    file: validations/main.yml
-  tags:
-    - always
+- name: Block to fail if any host fails
+  # Stop execution of remaining tasks in the role, if any task in the block failed on any host.
+  # This ensures that the role does not proceed skipping failed host, but fails the entire role execution.
+  # 'any_errors_fatal' is not documented to work on task level, therefore we use simple block.
+  # http://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_error_handling.html#aborting-on-the-first-error-any-errors-fatal
+  any_errors_fatal: true
+  block:
+    - name: SAP Patching - Validate variables
+      ansible.builtin.include_tasks:
+        file: validations/main.yml
+      tags:
+        - always
 
 
 - name: SAP Patching - Include task file for each step in the execution plan

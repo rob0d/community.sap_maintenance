@@ -25,6 +25,7 @@
       when:
         - __sap_patching_register_kernel_saproot_sh_stat.stat.exists
         - __sap_patching_register_kernel_saproot_sh_stat.stat.mode is search('..7$|..5$|..1$')
+      failed_when: false  # Fail is handled in the next task using '.rc' instead of '.failed'.
 
     - name: SAP Patching - Kernel - Saproot - Fail if 'saproot' command has failed
       ansible.builtin.fail:
@@ -33,4 +34,6 @@
           Command: {{ __command_saproot }}
           Output: {{ __sap_patching_register_kernel_saproot.stdout | d('') }}
           Error: {{ __sap_patching_register_kernel_saproot.stderr | d('') }}
-      when: __sap_patching_register_kernel_saproot.rc != 0
+      when:
+        - __sap_patching_register_kernel_saproot.rc is defined
+        - __sap_patching_register_kernel_saproot.rc != 0

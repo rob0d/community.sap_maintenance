@@ -99,14 +99,19 @@
 - name: SAP Patching - Validation - Prepare - Stat availability of the file in the variable 'sap_patching_sapcar_file_name'
   ansible.builtin.stat:
     path: "{{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
+  # Using become_user ensures that stat gathers facts using the correct user.
+  become: true
+  become_user: "{{ sap_patching_file_owner }}"
   register: __sap_patching_register_sapcar_file_name_stat
 
-- name: SAP Patching - Validation - Prepare - Fail if file in the variable 'sap_patching_sapcar_file_name' does not exist
+- name: SAP Patching - Validation - Prepare - Fail if file in the variable 'sap_patching_sapcar_file_name' is not executable
   ansible.builtin.fail:
     msg: |
-      FAIL: The file "{{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}" does not exist.
+      FAIL: The file "{{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}" does not exist as executable file.
       Please ensure that the SAPCAR file is correct and accessible.
-  when: not __sap_patching_register_sapcar_file_name_stat.stat.exists
+  when:
+    - not __sap_patching_register_sapcar_file_name_stat.stat.exists
+      or not __sap_patching_register_sapcar_file_name_stat.stat.executable
 
 
 - name: SAP Patching - Validation - Prepare - Set fact that validation was completed

@@ -8,7 +8,7 @@
   become: true
   register: __sap_patching_register_hdb_cluster_maintenance_output
   changed_when: __sap_patching_register_hdb_cluster_maintenance_output.rc == 0
-  failed_when: "'failed' in __sap_patching_register_hdb_cluster_maintenance_output.stderr or __sap_patching_register_hdb_cluster_maintenance_output.rc != 0"
+  failed_when: false  # Fail is handled in the next task using '.rc' instead of '.failed'.
 
 - name: SAP Patching - HDB Server - Apply - Suse - Fail if cluster maintenance mode change has failed
   ansible.builtin.fail:

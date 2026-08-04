@@ -186,7 +186,7 @@
     # Shell is used instead of copy/move modules to ensure we can use globbing
     # to copy file in case they are not in capitals as expected.
     # Copy is used to ensure we do not remove source files.
-    - name: SAP Patching - HDB Server - Prepare - Move all files {{ __direction }}
+    - name: SAP Patching - HDB Server - Prepare - Copy all files {{ __direction }}
       ansible.builtin.shell:
         cmd: >-
           cp '{{ __sap_patching_hdb_server_source }}'/[Ii][Mm][Dd][Bb]_[Ss][Ee][Rr][Vv][Ee][Rr]*
@@ -210,6 +210,7 @@
       become: true
       become_user: "{{ sap_patching_file_owner }}"
       changed_when: "'SAPCAR: processing archive' in __sap_patching_register_extract_result.stdout"
+      failed_when: false  # Next task handles failure to provide more information in the error message.
 
     - name: SAP Patching - HDB Server - Prepare - Fail if extraction of HDB server SAR file failed
       ansible.builtin.fail:

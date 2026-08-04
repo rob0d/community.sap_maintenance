@@ -188,7 +188,7 @@
     # Shell is used instead of copy/move modules to ensure we can use globbing
     # to copy file in case they are not in capitals as expected.
     # Copy is used to ensure we do not remove source files.
-    - name: SAP Patching - Host Agent - Prepare - Move all files {{ __direction }}
+    - name: SAP Patching - Host Agent - Prepare - Copy all files {{ __direction }}
       ansible.builtin.shell:
         cmd: >-
           cp '{{ __sap_patching_host_agent_source }}'/[Ss][Aa][Pp][Hh][Oo][Ss][Tt][Aa][Gg][Ee][Nn][Tt]*

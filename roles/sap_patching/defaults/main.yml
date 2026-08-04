@@ -58,8 +58,10 @@ sap_patching_kernel_source_local: ''  # e.g. "/install/kernel/source"
 sap_patching_kernel_prepare_version: autodetect
 
 # The name of directory either relative to 'sap_patching_kernel_base' or absolute path to the kernel (String).
-# If not set, the task 'abap_kernel_prepare' will populate correct directory,
-# or fall back to 'sap_patching_kernel_to_apply_symlink'.
+# This is used during the task 'abap_kernel_apply' to determine which kernel version to apply.
+# Applied only when the task 'abap_kernel_prepare' was not executed in the same run,
+# because the freshly prepared kernel always takes precedence over this variable.
+# If not set and prepare was not executed, it falls back to 'sap_patching_kernel_to_apply_symlink'.
 sap_patching_kernel_to_apply: ''
 
 # Select whether the kernel files are already present on the managed nodes (Boolean).
@@ -124,7 +126,7 @@ sap_patching_hdb_client_install_path:
 # This is used if shared client installation is being updated, instead of individual installation.
 # Sets '--sapmnt' parameter for 'hdbinst' command.
 # NOTE: Mutually exclusive with 'sap_patching_hdb_client_install_path', if both are set, the playbook will fail.
-sap_patching_hdb_client_shared_path: ''  # e.g. /usr/sap/hdbclient
+# sap_patching_hdb_client_shared_path: ''  # e.g. /usr/sap/hdbclient
 
 # Select whether the HDB client files are already present on the managed nodes (Boolean).
 # If 'true', the HDB client files are already on managed nodes (e.g., pre-staged to NFS or local disk)
@@ -144,7 +146,7 @@ sap_patching_hdb_client_files_shared: true
 
 # The SAP HANA Database System ID (SID) (String).
 # NOTE: Must be set if using database with different SID than 'sap_patching_sap_system_sid'.
-sap_patching_hdb_system_sid: ''
+# sap_patching_hdb_system_sid: ''
 
 # The path to base HDB server directory where version specific directories will be created during the prepare step (String).
 # Used when 'sap_patching_hdb_server_files_on_target' is set to 'true'.
@@ -169,7 +171,7 @@ sap_patching_hdb_server_to_apply: ''
 # The path to HDB server installation (String).
 # Defaults to '/usr/sap/<SID>/SYS/exe/hdb' which is the default installation path for HDB server.
 sap_patching_hdb_server_install_path:
-  "{{ '/usr/sap/' + sap_patching_hdb_system_sid | upper + '/SYS/exe/hdb' }}"
+  "{{ '/usr/sap/' + (sap_patching_hdb_system_sid | d(sap_patching_sap_system_sid)) | upper + '/SYS/exe/hdb' }}"
 
 ## HDB configfile parameters:
 
@@ -219,7 +221,7 @@ sap_patching_hdb_server_is_clustered: false
 # Default value belongs to 'SAPHanaSR-angi' version with instance number '00',
 # because this role does not use instance number variable.
 sap_patching_hdb_server_cluster_hdb_resource_name:
-  "cln_SAPHanaCon_{{ sap_patching_hdb_system_sid | upper }}_HDB00"
+  "cln_SAPHanaCon_{{ (sap_patching_hdb_system_sid | d(sap_patching_sap_system_sid)) | upper }}_HDB00"
 
 # Select whether the HDB server files are already present on the managed nodes (Boolean).
 # If 'true', the HDB server files are already on managed nodes (e.g., pre-staged to NFS or local disk)
@@ -301,8 +303,10 @@ sap_patching_webdisp_source: ''  # e.g.  /install/webdisp/source
 sap_patching_webdisp_source_local: ''  # e.g. "/install/webdisp/source"
 
 # The name of directory either relative to 'sap_patching_webdisp_base' or absolute path to the web dispatcher (String).
-# If not set, the task 'webdisp_prepare' will populate correct directory,
-# or fall back to 'sap_patching_webdisp_to_apply_symlink'.
+# This is used during the task 'webdisp_apply' to determine which web dispatcher version to apply.
+# Applied only when the task 'webdisp_prepare' was not executed in the same run,
+# because the freshly prepared web dispatcher always takes precedence over this variable.
+# If not set and prepare was not executed, it falls back to 'sap_patching_webdisp_to_apply_symlink'.
 sap_patching_webdisp_to_apply: ''
 
 # Select whether the web dispatcher files are already present on the managed nodes (Boolean).

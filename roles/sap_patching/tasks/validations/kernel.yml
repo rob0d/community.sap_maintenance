@@ -60,7 +60,7 @@
 
 
 # We do not check if it is empty string, because detection will populate it.
-- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_to_apply' is defined as non-empty string
+- name: SAP Patching - Validation - Kernel - Assert that the variable 'sap_patching_kernel_to_apply' is defined as a string
   ansible.builtin.assert:
     that:
       - sap_patching_kernel_to_apply is defined
