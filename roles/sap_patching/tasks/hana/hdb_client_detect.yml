@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+
+# Determines on which hosts in play the HDB client is installed and elects the primary host.
+# Executed on all hosts in play, so it must never be limited by 'run_once'.
+# NOTE: Election relies on the default 'linear' strategy, where all hosts complete the detection
+# tasks before any host builds the list. Election is not deterministic with 'strategy: free'.
+
+# Validations in 'hdb_client' ensure that only one of the two paths is defined.
+- name: SAP Patching - HDB Client - Detect - Set fact with the HDB client installation directory
+  ansible.builtin.set_fact:
+    __sap_patching_fact_hdb_client_path: >-
+      {{ sap_patching_hdb_client_shared_path
+        if sap_patching_hdb_client_shared_path | d('') | length > 0
+        else sap_patching_hdb_client_install_path }}
+
+- name: SAP Patching - HDB Client - Detect - Stat availability of {{ __sap_patching_fact_hdb_client_path }}
+  ansible.builtin.stat:
+    path: "{{ __sap_patching_fact_hdb_client_path }}"
+  register: __sap_patching_register_hdb_client_install_path_stat
+
+- name: SAP Patching - HDB Client - Detect - Find files in {{ __sap_patching_fact_hdb_client_path }}
+  ansible.builtin.find:
+    paths: "{{ __sap_patching_fact_hdb_client_path }}"
+    file_type: any
+  register: __sap_patching_register_hdb_client_path_files
+  when:
+    - __sap_patching_register_hdb_client_install_path_stat.stat.exists
+    - __sap_patching_register_hdb_client_install_path_stat.stat.islnk
+      or __sap_patching_register_hdb_client_install_path_stat.stat.isdir
+
+# Fact is set unconditionally, so that the value from previously executed plan steps is overwritten.
+- name: SAP Patching - HDB Client - Detect - Set fact if the HDB client is installed on this host
+  ansible.builtin.set_fact:
+    __sap_patching_fact_hdb_client_installed:
+      "{{ 'hdbsql' in __basename_list or 'hdbclient' in __basename_list }}"
+  vars:
+    __basename_list: >-
+      {{ __sap_patching_register_hdb_client_path_files.files | d([])
+         | map(attribute='path') | map('basename') | list }}
+
+# Detection is never fatal, so that a single play can contain hosts of different roles.
+# A failure here would remove the host from 'ansible_play_hosts' and therefore cancel
+# all remaining steps of the execution plan for that host, even the unrelated ones.
+# Broken installations are reported and skipped, and a re-run after fixing them patches the host,
+# because both prepare and apply are idempotent.
+- name: SAP Patching - HDB Client - Detect - Warning that the HDB client patching is skipped on this host
+  ansible.builtin.debug:
+    msg: |
+      {% if not __sap_patching_register_hdb_client_install_path_stat.stat.exists %}
+      WARN: The HDB client directory "{{ __sap_patching_fact_hdb_client_path }}" was not found,
+      so the HDB client patching is skipped on this host.
+      {% else %}
+      WARN: The HDB client directory "{{ __sap_patching_fact_hdb_client_path }}" was found, but it does not contain
+      a valid HDB client installation, so the HDB client patching is skipped on this host.
+      Ensure that the path points to a valid HDB client installation,
+      where 'hdbsql' or 'hdbclient' executables are present.
+      {% endif %}
+      {% if sap_patching_hdb_client_shared_path | d('') | length > 0 %}
+      Directory is defined in the variable 'sap_patching_hdb_client_shared_path'.
+      {% else %}
+      Directory is defined in the variable 'sap_patching_hdb_client_install_path'.
+      {% endif %}
+  when: not __sap_patching_fact_hdb_client_installed
+
+# Every host builds the same list from 'hostvars', so neither 'run_once' nor delegation is needed.
+# 'ansible_play_hosts' excludes failed and unreachable hosts, so those are never elected.
+- name: SAP Patching - HDB Client - Detect - Set fact with hosts in play where the HDB client is installed
+  ansible.builtin.set_fact:
+    __sap_patching_fact_hdb_client_hosts: >-
+      {{ ansible_play_hosts
+         | map('extract', hostvars)
+         | selectattr('__sap_patching_fact_hdb_client_installed', 'defined')
+         | selectattr('__sap_patching_fact_hdb_client_installed')
+         | map(attribute='inventory_hostname')
+         | list }}
+
+- name: SAP Patching - HDB Client - Detect - Set fact with the primary host for a shared installation
+  ansible.builtin.set_fact:
+    __sap_patching_fact_hdb_client_primary_host: "{{ __sap_patching_fact_hdb_client_hosts | first | d('') }}"

@@ -8,12 +8,12 @@
         path: "{{ __sap_patching_hdb_server_base }}"
       register: __sap_patching_register_hdb_server_prepare_base_stat
 
-    - name: SAP Patching - HDB Server - Prepare - Create base directory with user {{ sap_patching_file_owner }}
+    - name: SAP Patching - HDB Server - Prepare - Create base directory with user {{ __sap_patching_file_owner }}
       ansible.builtin.file:
         path: "{{ __sap_patching_hdb_server_base }}"
         state: directory
         mode: '0755'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
       when: not __sap_patching_register_hdb_server_prepare_base_stat.stat.exists
 
@@ -28,18 +28,18 @@
           when: not (__sap_patching_register_hdb_server_prepare_base_stat.stat.exists
                   and __sap_patching_register_hdb_server_prepare_base_stat.stat.isdir)
 
-        - name: SAP Patching - HDB Server - Prepare - Stat base directory with user {{ sap_patching_file_owner }}
+        - name: SAP Patching - HDB Server - Prepare - Stat base directory with user {{ __sap_patching_file_owner }}
           ansible.builtin.stat:
             path: "{{ __sap_patching_hdb_server_base }}"
           register: __sap_patching_register_hdb_server_prepare_base_user_stat
           # Stat with correct user to check permissions.
           become: true
-          become_user: "{{ sap_patching_file_owner }}"
+          become_user: "{{ __sap_patching_file_owner }}"
 
         - name: SAP Patching - HDB Server - Prepare - Fail if user cannot write to base directory
           ansible.builtin.fail:
             msg: |
-              FAIL: User '{{ sap_patching_file_owner }}' does not have write permissions
+              FAIL: User '{{ __sap_patching_file_owner }}' does not have write permissions
               to the directory '{{ sap_patching_hdb_server_base }}'
               defined in the variable 'sap_patching_hdb_server_base'.
 
@@ -55,12 +55,12 @@
         path: "{{ __sap_patching_hdb_server_source }}"
       register: __sap_patching_register_hdb_server_prepare_source_stat
 
-    - name: SAP Patching - HDB Server - Prepare - Create source directory with user {{ sap_patching_file_owner }}
+    - name: SAP Patching - HDB Server - Prepare - Create source directory with user {{ __sap_patching_file_owner }}
       ansible.builtin.file:
         path: "{{ __sap_patching_hdb_server_source }}"
         state: directory
         mode: '0755'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
       when: not __sap_patching_register_hdb_server_prepare_source_stat.stat.exists
 
@@ -98,7 +98,7 @@
             dest: "{{ __sap_patching_hdb_server_source }}/"
             remote_src: false  # Copy from control node
             mode: '0755'
-            owner: "{{ sap_patching_file_owner }}"
+            owner: "{{ __sap_patching_file_owner }}"
             group: "{{ sap_patching_file_group }}"
 
 
@@ -167,7 +167,7 @@
         path: "{{ __sap_patching_fact_hdb_server_extract_target }}"
         state: directory
         mode: '0755'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
       when: __sap_patching_fact_hdb_server_version != ''
 
@@ -208,7 +208,7 @@
       args:
         chdir: "{{ __sap_patching_fact_hdb_server_extract_target }}"
       become: true
-      become_user: "{{ sap_patching_file_owner }}"
+      become_user: "{{ __sap_patching_file_owner }}"
       changed_when: "'SAPCAR: processing archive' in __sap_patching_register_extract_result.stdout"
       failed_when: false  # Next task handles failure to provide more information in the error message.
 
@@ -240,10 +240,10 @@
         dest: "{{ __sap_patching_hdb_server_base }}/{{ sap_patching_hdb_server_to_apply_symlink }}"
         state: link
         force: true
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
       become: true
-      become_user: "{{ sap_patching_file_owner }}"
+      become_user: "{{ __sap_patching_file_owner }}"
 
     - name: SAP Patching - HDB Server - Prepare - Set fact with prepared path for further execution tasks
       ansible.builtin.set_fact:
