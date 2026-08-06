@@ -20,24 +20,35 @@
           and __sap_patching_register_host_agent_apply_base_stat.stat.isdir)
 
 
-# Load version to apply in this order:
-# 1. If 'sap_patching_host_agent_to_apply' is not empty.
-# 2. If '__sap_patching_fact_host_agent_to_apply' is not defined. We assume prepare was executed.
-# 3. Default symlink 'sap_patching_host_agent_to_apply_symlink'.
-- name: SAP Patching - Host Agent - Apply - Set fact with host agent symlink if not specified to default if not defined or empty
-  ansible.builtin.set_fact:
-    __sap_patching_fact_host_agent_to_apply: >-
-      {{ sap_patching_host_agent_to_apply | regex_replace('\\/$', '')
-        if sap_patching_host_agent_to_apply | string | trim | length > 0
-        else (__sap_patching_fact_host_agent_to_apply
-          if __sap_patching_fact_host_agent_to_apply is defined
-          else sap_patching_host_agent_to_apply_symlink) }}
+# Facts are set here for improved readability, instead of combining all this logic into one jinja2 block.
 
-- name: SAP Patching - Host Agent - Apply - Set fact with updated host agent path if it is not an absolute path
+# Prepare the path to host agent to apply, based on the following logic:
+# 1. If the prepare task was executed, use the prepared host agent path.
+# 2. If the user did not specify a host agent to apply, use the default symlink path.
+# 3. If the user specified a host agent to apply, use the specified path (relative to base or absolute).
+
+- name: SAP Patching - Host Agent - Apply - Set fact with host agent to apply if prepare was executed
+  ansible.builtin.set_fact:
+    __sap_patching_fact_host_agent_to_apply: "{{ __sap_patching_fact_host_agent_to_apply_prepared }}"
+  when: __sap_patching_fact_host_agent_to_apply_prepared is defined
+
+- name: SAP Patching - Host Agent - Apply - Set fact with host agent to apply if user unspecified
   ansible.builtin.set_fact:
     __sap_patching_fact_host_agent_to_apply:
-      "{{ __sap_patching_host_agent_base }}/{{ __sap_patching_fact_host_agent_to_apply }}"
-  when: not __sap_patching_fact_host_agent_to_apply.startswith('/')
+      "{{ __sap_patching_host_agent_base }}/{{ sap_patching_host_agent_to_apply_symlink }}"
+  when:
+    - __sap_patching_fact_host_agent_to_apply_prepared is not defined
+    - sap_patching_host_agent_to_apply | trim | length == 0
+
+- name: SAP Patching - Host Agent - Apply - Set fact with host agent to apply if user specified
+  ansible.builtin.set_fact:
+    __sap_patching_fact_host_agent_to_apply:
+      "{{ __sap_patching_host_agent_base ~ '/' ~ sap_patching_host_agent_to_apply
+        if not sap_patching_host_agent_to_apply.startswith('/')
+        else sap_patching_host_agent_to_apply }}"
+  when:
+    - __sap_patching_fact_host_agent_to_apply_prepared is not defined
+    - sap_patching_host_agent_to_apply | trim | length > 0
 
 
 # Prepare tasks prepared all files on all managed nodes, or on first one with shared filesystem.
@@ -92,7 +103,7 @@
       ansible.builtin.file:
         path: "{{ sap_patching_host_agent_autoupdate_path }}/.upgrading"
         state: touch
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
         mode: '0644'
 
@@ -105,7 +116,7 @@
         src: "{{ __sap_patching_fact_host_agent_to_apply }}/"
         dest: "{{ sap_patching_host_agent_autoupdate_path }}"
         remote_src: true  # Files are already on the managed node, just move them with correct permissions.
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
         mode: '0755'
         directory_mode: '0755'

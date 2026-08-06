@@ -4,10 +4,18 @@
 # Facts are not set here to ensure that they do not influence other plan steps,
 # instead they are set temporarily in vars section of include_tasks.
 
+- name: SAP Patching - Web Dispatcher - Prepare - Detect hosts where the Web Dispatcher is installed
+  ansible.builtin.include_tasks:
+    file: shared_kernel_detect.yml
+  vars:
+    __sap_patching_fact_sap_system_sid: "{{ (sap_patching_wdp_system_sid | d(sap_patching_sap_system_sid)) | upper }}"
+
+
 - name: SAP Patching - Web Dispatcher - Prepare - Execute shared tasks for kernel prepare
   ansible.builtin.include_tasks:
     file: shared_kernel_prepare.yml
   vars:
+    __sap_patching_fact_sap_system_sid: "{{ (sap_patching_wdp_system_sid | d(sap_patching_sap_system_sid)) | upper }}"
     __sap_patching_fact_kernel_base: "{{ __sap_patching_webdisp_base }}"
     __sap_patching_fact_kernel_source: "{{ __sap_patching_webdisp_source }}"
     __sap_patching_fact_kernel_source_local: "{{ __sap_patching_webdisp_source_local }}"
@@ -18,7 +26,14 @@
 
 
 - name: Block to execute only if SAR files were found
-  when: __sap_patching_register_kernel_source_dir_content.matched | d(0) > 0
+  # Preparation runs only on hosts where the Web Dispatcher is installed. With a shared staging area
+  # it is limited further to the elected primary host, so extraction happens exactly once. With a
+  # per-host staging area every installed host extracts its own copy.
+  when:
+    - __sap_patching_fact_kernel_installed | d(false)
+    - not sap_patching_webdisp_files_shared
+      or inventory_hostname == __sap_patching_fact_kernel_primary_host
+    - __sap_patching_register_kernel_source_dir_content.matched | d(0) > 0
   block:
 
     # In case there are more than one SAR files, get the one with the highest version number
@@ -57,7 +72,7 @@
         path: "{{ __sap_patching_fact_webdisp_extract_target }}"
         state: directory
         mode: '0755'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
 
 
@@ -69,7 +84,7 @@
         dest: "{{ __sap_patching_webdisp_base }}/{{ __sap_patching_fact_webdisp_sar }}"
         remote_src: true
         mode: 'preserve'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
       when: __sap_patching_webdisp_base != __sap_patching_webdisp_source
 
@@ -84,7 +99,7 @@
       args:
         chdir: "{{ __sap_patching_fact_webdisp_extract_target }}"
       become: true
-      become_user: "{{ sap_patching_file_owner }}"
+      become_user: "{{ __sap_patching_file_owner }}"
       register: __sap_patching_register_extract_result
       changed_when: "'SAPCAR: processing archive' in __sap_patching_register_extract_result.stdout"
       failed_when: __sap_patching_register_extract_result.rc != 0
@@ -151,7 +166,7 @@
           __sap_patching_fact_webdisp_release_wd }}p{{ __sap_patching_fact_webdisp_pn }}/"
         remote_src: true
         mode: '0755'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
 
     - name: SAP Patching - Web Dispatcher - Prepare - Remove the temporary web dispatcher directory
@@ -172,14 +187,14 @@
         dest: "{{ __sap_patching_webdisp_base }}/{{ sap_patching_webdisp_to_apply_symlink }}"
         state: link
         force: true
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
       become: true
-      become_user: "{{ sap_patching_file_owner }}"
+      become_user: "{{ __sap_patching_file_owner }}"
 
     - name: SAP Patching - Web Dispatcher - Prepare - Set fact with prepared path for further execution tasks
       ansible.builtin.set_fact:
-        __sap_patching_fact_webdisp_to_apply:
+        __sap_patching_fact_webdisp_to_apply_prepared:
           "{{ __sap_patching_fact_webdisp_extract_target }}"
 
 
@@ -189,6 +204,7 @@
       ansible.builtin.file:
         path: "{{ __sap_patching_fact_webdisp_extract_target }}"
         state: absent
+      when: __sap_patching_fact_webdisp_extract_target is defined
 
     - name: SAP Patching - Web Dispatcher - Prepare - Fail if preparation tasks have failed
       ansible.builtin.fail:
@@ -204,4 +220,46 @@
     msg: |
       No web dispatcher SAR files found in source directory {{ __sap_patching_webdisp_source }}.
       Skipping web dispatcher preparation.
-  when: __sap_patching_register_kernel_source_dir_content.matched == 0
+  when:
+    - __sap_patching_fact_kernel_installed | d(false)
+    - __sap_patching_register_kernel_source_dir_content.matched | d(0) == 0
+
+
+# In shared mode the Web Dispatcher is prepared only on the primary host, so the remaining installed
+# hosts copy the resolved path from it. The staging area is shared, therefore the path is identical and
+# the verification block below can confirm that every installed host actually sees the prepared files.
+- name: SAP Patching - Web Dispatcher - Prepare - Propagate prepared web dispatcher path from the primary host
+  ansible.builtin.set_fact:
+    __sap_patching_fact_webdisp_to_apply_prepared:
+      "{{ hostvars[__sap_patching_fact_kernel_primary_host]['__sap_patching_fact_webdisp_to_apply_prepared'] }}"
+  when:
+    - __sap_patching_fact_kernel_installed | d(false)
+    - sap_patching_webdisp_files_shared
+    - inventory_hostname != __sap_patching_fact_kernel_primary_host
+    - hostvars[__sap_patching_fact_kernel_primary_host]['__sap_patching_fact_webdisp_to_apply_prepared'] is defined
+
+
+# Executed on every host with the Web Dispatcher installed, because extraction above can be limited
+# to the elected primary host. This is the only check proving that the base directory is really shared.
+- name: Block for all hosts
+  when:
+    - __sap_patching_fact_kernel_installed | d(false)
+    - __sap_patching_fact_webdisp_to_apply_prepared is defined
+  block:
+
+    - name: SAP Patching - Web Dispatcher - Prepare - Stat prepared web dispatcher directory on all hosts
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_fact_webdisp_to_apply_prepared }}/sapwebdisp"
+      register: __sap_patching_register_webdisp_prepared_stat
+
+    - name: SAP Patching - Web Dispatcher - Prepare - Fail if prepared web dispatcher is not available on this host
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The prepared Web Dispatcher "{{ __sap_patching_fact_webdisp_to_apply_prepared }}" is not available on this host.
+          Web Dispatcher was prepared only on the elected primary host "{{ __sap_patching_fact_kernel_primary_host }}",
+          because the variable 'sap_patching_webdisp_files_shared' is set to 'true'.
+
+          Please ensure that the path defined in the variable 'sap_patching_webdisp_base'
+          is on a shared filesystem mounted on all hosts,
+          or set 'sap_patching_webdisp_files_shared' to 'false' to prepare Web Dispatcher on every host separately.
+      when: not __sap_patching_register_webdisp_prepared_stat.stat.exists

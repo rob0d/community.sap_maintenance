@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
+# Webdisp SID is override and we need to validate it only if it is defined. It is commented out by default.
 - name: SAP Patching - Validation - Web Dispatcher - Assert that the variable 'sap_patching_wdp_system_sid' is defined as valid string
   ansible.builtin.assert:
     that:
-      - sap_patching_wdp_system_sid is defined
       - sap_patching_wdp_system_sid is string
       - sap_patching_wdp_system_sid | trim | length  == 3
     fail_msg: |
       The variable 'sap_patching_wdp_system_sid' is undefined, not 3 characters long or invalid.
       It should be a valid SAP system SID string of 3 characters.
+  when: sap_patching_wdp_system_sid is defined
 
 
 # Validation of directory existence is not performed here, because:

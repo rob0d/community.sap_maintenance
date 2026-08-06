@@ -23,19 +23,25 @@
 
 - name: SAP Patching - Kernel - Restart - Update permissions on found sapuxuserchk files
   ansible.builtin.file:
-    path: "{{ item.path }}"
+    path: "{{ sapuxuserchk_item.path }}"
     owner: root
     group: sapsys
     mode: '4755'
     state: file
   loop: "{{ __sap_patching_register_sapuxuserchk_found.files }}"
+  loop_control:
+    loop_var: sapuxuserchk_item
+    label: "{{ sapuxuserchk_item.path }}"
   when: __sap_patching_register_sapuxuserchk_found.matched > 0
 
 
 # Restart ABAP system using Rolling Kernel Switch (RKS) - on one host only.
 - name: Block for rolling kernel switch strategy
-  run_once: true  # Mandatory because we run System wide commands.
-  when: __sap_patching_fact_kernel_restart_strategy == 'rks'
+  when:
+    - __sap_patching_fact_kernel_restart_strategy == 'rks'
+    # System wide commands are initiated only once, from the first host running an instance,
+    # elected in 'startstop/sapstartsrv_instances.yml'.
+    - inventory_hostname == __sap_patching_fact_instance_primary_host
   block:
 
     # Reason for noqa: Shell retains the environment variables.
@@ -57,9 +63,11 @@
 
     - name: SAP Patching - Kernel - Restart - Set fact with extracted RKS compatibility level from disp+work output
       ansible.builtin.set_fact:
-        __sap_patching_fact_kernel_new_rks_level:
-          "{{ __sap_patching_register_kernel_new_output.stdout_lines
-            | regex_search('RKS compatibility level\\s+(\\d+)', '\\1') | first }}"
+        __sap_patching_fact_kernel_new_rks_level: >-
+          {{ __sap_patching_register_kernel_new_output.stdout
+            | regex_search('RKS compatibility level\s+(\d+)', '\1')
+            | first
+            | d('0') }}
 
 
     # Grep for 'disp+work' is removed because we have to support also ASCS, SCS, ERS and others.
@@ -110,58 +118,66 @@
       ansible.builtin.include_tasks:
         file: "{{ role_path }}/tasks/startstop/abap_start.yml"
 
-    - name: Block to set command for both execution and fail validation
-      vars:
-        # Dynamic assignment allowing us to change it when HA detection causes failure.
-        __sap_patching_kernel_rks_force: "{{ sap_patching_kernel_rks_force }}"
-        __command_update_system: >-
+
+    - name: SAP Patching - Kernel - Restart - Initiate Rolling Kernel Switch (RKS)
+      ansible.builtin.shell:
+        cmd: >-
           source ~/.profile &&
           sapcontrol
           -nr {{ __sap_patching_fact_instance_list[0][1] }}
           -function UpdateSystem {{ sap_patching_kernel_rks_wait_timeout }}
-          {{ sap_patching_kernel_rks_soft_timeout | d(3600) }}
-          {{ 1 if __sap_patching_kernel_rks_force | d(false) else '' }}
-      block:
-        - name: SAP Patching - Kernel - Restart - Initiate Rolling Kernel Switch (RKS)
-          ansible.builtin.shell:
-            cmd: "{{ __command_update_system }}"
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sidadm_user }}"
-          register: __sap_patching_register_rks_start
-          failed_when:
-            - "__sap_patching_register_rks_start.rc != 0 or 'FAIL' in __sap_patching_register_rks_start.stdout"
-            - "'HA Product detected' not in __sap_patching_register_rks_start.stdout"
-          changed_when: __sap_patching_register_rks_start.rc == 0
+          {{ sap_patching_kernel_rks_soft_timeout }}
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: "{{ __sap_patching_fact_sidadm_user }}"
+      register: __sap_patching_register_rks_start
+      failed_when: false  # Fail is handled in the next task, to allow for HA detection and retry.
+      changed_when: __sap_patching_register_rks_start.rc == 0
 
-        - name: SAP Patching - Kernel - Restart - Initiate Rolling Kernel Switch (RKS) - HA detected
-          ansible.builtin.shell:
-            cmd: "{{ __command_update_system }}"
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sidadm_user }}"
-          register: __sap_patching_register_rks_start_ha
-          vars:
-            __sap_patching_kernel_rks_force: true
-          when:
-            - "'HA Product detected' in __sap_patching_register_rks_start.stdout"
-            - "__sap_patching_register_rks_start.rc != 0 or 'FAIL' in __sap_patching_register_rks_start.stdout"
-          failed_when:
-            - "__sap_patching_register_rks_start_ha.rc != 0 or 'FAIL' in __sap_patching_register_rks_start_ha.stdout"
-          changed_when: __sap_patching_register_rks_start_ha.rc == 0
+    - name: SAP Patching - Kernel - Restart - Fail if 'sapcontrol' with function 'UpdateSystem' has failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'sapcontrol' with function 'UpdateSystem' has failed for current kernel.
+          Command: {{ __sap_patching_register_rks_start.cmd | d('') }}
+          Output: {{ __sap_patching_register_rks_start.stdout | d('') }}
+          Error: {{ __sap_patching_register_rks_start.stderr | d('') }}
+      when:
+        - "__sap_patching_register_rks_start.rc != 0 or 'FAIL' in __sap_patching_register_rks_start.stdout"
+        - "'HA Product detected' not in __sap_patching_register_rks_start.stdout"
 
-        - name: SAP Patching - Kernel - Restart - Fail if 'sapcontrol' with function 'UpdateSystem' has failed
-          ansible.builtin.fail:
-            msg: |
-              FAIL: The command 'sapcontrol' with function 'UpdateSystem' has failed for current kernel.
-              Command: {{ __command_update_system }}
-              Output: {{ __sap_patching_register_rks_start.stdout | d('') }}
-              Error: {{ __sap_patching_register_rks_start.stderr | d('') }}
-          when:
-            - __sap_patching_register_rks_start.rc != 0
-              or 'FAIL' in __sap_patching_register_rks_start.stdout
+
+    # Repeat same update command, but with force bit set, if HA is detected and the first command failed.
+    - name: SAP Patching - Kernel - Restart - Initiate Rolling Kernel Switch (RKS) - HA detected
+      ansible.builtin.shell:
+        cmd: >-
+          source ~/.profile &&
+          sapcontrol
+          -nr {{ __sap_patching_fact_instance_list[0][1] }}
+          -function UpdateSystem {{ sap_patching_kernel_rks_wait_timeout }}
+          {{ sap_patching_kernel_rks_soft_timeout }}
+          1
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: "{{ __sap_patching_fact_sidadm_user }}"
+      register: __sap_patching_register_rks_start_ha
+      when:
+        - "'HA Product detected' in __sap_patching_register_rks_start.stdout"
+        - "__sap_patching_register_rks_start.rc != 0 or 'FAIL' in __sap_patching_register_rks_start.stdout"
+      failed_when: false  # Fail is handled in the next task.
+      changed_when: __sap_patching_register_rks_start_ha.rc == 0
+
+    - name: SAP Patching - Kernel - Restart - Fail if 'sapcontrol' with function 'UpdateSystem' has failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'sapcontrol' with function 'UpdateSystem' has failed for current kernel.
+          Command: {{ __sap_patching_register_rks_start_ha.cmd | d('') }}
+          Output: {{ __sap_patching_register_rks_start_ha.stdout | d('') }}
+          Error: {{ __sap_patching_register_rks_start_ha.stderr | d('') }}
+      when:
+        - __sap_patching_register_rks_start_ha.skipped is not defined
+        - "__sap_patching_register_rks_start_ha.rc != 0 or 'FAIL' in __sap_patching_register_rks_start_ha.stdout"
 
     # TODO: Add orchestrated saproot execution after all instances are done if possible.
     # {{ __sap_patching_fact_kernel_type }}_saproot.yml
@@ -179,39 +195,41 @@
       # Stop must happen to avoid 'FAIL: Instance still running' during Bootstrap.
       # when: __sap_patching_fact_kernel_restart_strategy != "bootstrap"
 
-    - name: Block to set command for both execution and fail validation
-      vars:
-        __command_bootstrap: >-
+    # Now restart the sapstartsrv for each instance found
+    - name: SAP Patching - Kernel - Restart - Bootstrap each detected running instance
+      ansible.builtin.shell:
+        cmd: >-
           source ~/.profile &&
           sapcontrol
           -nr {{ instance_item[1] }}
           -function Bootstrap
-      block:
+      args:
+        executable: /bin/bash
+      become: true
+      become_user: "{{ __sap_patching_fact_sidadm_user }}"
+      loop: "{{ __sap_patching_fact_instance_list }}"
+      loop_control:
+        loop_var: instance_item
+        label: "{{ instance_item | join('') }}"
+      register: __sap_patching_register_sssrv_restart
+      changed_when: __sap_patching_register_sssrv_restart.rc == 0
+      failed_when: false  # Fail is handled in the next task, to report the instance that failed.
 
-        # Now restart the sapstartsrv for each instance found
-        - name: SAP Patching - Kernel - Restart - Bootstrap each detected running instance
-          ansible.builtin.shell:
-            cmd: "{{ __command_bootstrap }}"
-          args:
-            executable: /bin/bash
-          become: true
-          become_user: "{{ __sap_patching_fact_sidadm_user }}"
-          loop: "{{ __sap_patching_fact_instance_list }}"
-          loop_control:
-            loop_var: instance_item
-          register: __sap_patching_register_sssrv_restart
-          changed_when: __sap_patching_register_sssrv_restart.rc == 0
-
-        - name: SAP Patching - Kernel - Restart - Fail if 'sapcontrol' with function 'Bootstrap' has failed
-          ansible.builtin.fail:
-            msg: |
-              FAIL: The command 'sapcontrol' with function 'Bootstrap' has failed for current kernel.
-              Command: {{ __command_bootstrap }}
-              Output: {{ __sap_patching_register_sssrv_restart.stdout | d('') }}
-              Error: {{ __sap_patching_register_sssrv_restart.stderr | d('') }}
-          when:
-            - __sap_patching_register_sssrv_restart.rc != 0
-              or 'FAIL' in __sap_patching_register_sssrv_restart.stdout
+    # A looped register exposes only 'results', so each instance is evaluated separately.
+    - name: SAP Patching - Kernel - Restart - Fail if 'sapcontrol' with function 'Bootstrap' has failed
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The command 'sapcontrol' with function 'Bootstrap' has failed for current kernel.
+          Command: {{ bootstrap_item.cmd | d('') }}
+          Output: {{ bootstrap_item.stdout | d('') }}
+          Error: {{ bootstrap_item.stderr | d('') }}
+      loop: "{{ __sap_patching_register_sssrv_restart.results | d([]) }}"
+      loop_control:
+        loop_var: bootstrap_item
+        label: "{{ bootstrap_item.instance_item | d([]) | join('') }}"
+      when:
+        - bootstrap_item.rc | d(0) != 0
+          or 'FAIL' in bootstrap_item.stdout | d('')
 
     # TODO: Implement async validation of running processes instead of blind wait.
     - name: SAP Patching - Kernel - Restart - Wait for 1 minute after bootstrap
@@ -242,3 +260,5 @@
       {% else %}
         INFO: SAP System was restarted to apply new kernel and 'saproot.sh' was executed to adjust permissions after patching.
       {% endif %}
+  # Shown once from the elected primary host, the same host that initiates the system wide commands.
+  when: inventory_hostname == __sap_patching_fact_instance_primary_host

@@ -1,44 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-- name: SAP Patching - Validation - Host Agent - Assert that the variable 'sap_patching_file_owner' is defined as non-empty string
-  ansible.builtin.assert:
-    that:
-      - sap_patching_file_owner is defined
-      - sap_patching_file_owner is string
-      - sap_patching_file_owner | length > 0
-    fail_msg: |
-      The variable 'sap_patching_file_owner' is undefined, empty, or invalid.
-      It should be a string containing a valid user.
-
-- name: SAP Patching - Validation - Host Agent - Assert that the variable 'sap_patching_file_owner' contains valid user
-  ansible.builtin.assert:
-    that:
-      - ansible_facts["getent_passwd"][sap_patching_file_owner] is defined
-    fail_msg: |
-      FAIL: The variable 'sap_patching_file_owner' must be set to a valid user on the system.
-      The current value '{{ sap_patching_file_owner }}' does not correspond to any user on the system.
-
-
-- name: SAP Patching - Validation - Host Agent - Assert that the variable 'sap_patching_file_group' is defined as non-empty string
-  ansible.builtin.assert:
-    that:
-      - sap_patching_file_group is defined
-      - sap_patching_file_group is string
-      - sap_patching_file_group | length > 0
-    fail_msg: |
-      The variable 'sap_patching_file_group' is undefined, empty, or invalid.
-      It should be a string containing a valid group.
-
-- name: SAP Patching - Validation - Host Agent - Assert that the variable 'sap_patching_file_group' contains valid group
-  ansible.builtin.assert:
-    that:
-      - ansible_facts["getent_group"][sap_patching_file_group] is defined
-    fail_msg: |
-      FAIL: The variable 'sap_patching_file_group' must be set to a valid group on the system.
-      The current value '{{ sap_patching_file_group }}' does not correspond to any group on the system.
-
-
 # Validation of directory existence is not performed here, because:
 # - Prepare tasks will create directory if not present.
 # - Apply task will fail if not present.

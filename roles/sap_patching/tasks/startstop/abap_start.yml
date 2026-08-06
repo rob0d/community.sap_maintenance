@@ -17,35 +17,29 @@
 # so we can be sure that there is at least one instance to execute the start on.
 
 - name: Block to start the system and wait until all instances are up
-  run_once: true  # StartSystem must be executed from one host only.
-  vars:
-    __command_start_system: >-
-      source ~/.profile &&
-      sapcontrol
-      -nr {{ __sap_patching_fact_instance_list[0][1] }}
-      -function StartSystem
-    __command_start_wait: >-
-      source ~/.profile &&
-      sapcontrol
-      -nr {{ __sap_patching_fact_instance_list[0][1] }}
-      -function WaitforStarted 600 10
-
+  # StartSystem must be executed from one host only, elected in 'sapstartsrv_instances.yml'.
+  when: inventory_hostname == __sap_patching_fact_instance_primary_host
   block:
     - name: SAP Patching - Start ABAP - Execute 'sapcontrol' with function 'StartSystem' to start the system
       ansible.builtin.shell:
-        cmd: "{{ __command_start_system }}"
+        cmd: >-
+          source ~/.profile &&
+          sapcontrol
+          -nr {{ __sap_patching_fact_instance_list[0][1] }}
+          -function StartSystem
       args:
         executable: /bin/bash
       become: true
-      become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+      become_user: "{{ __sap_patching_fact_sidadm_user }}"
       register: __sap_patching_register_start_system
       changed_when: __sap_patching_register_start_system.rc == 0
+      failed_when: false  # Fail is handled in the next task, to report the command output.
 
     - name: SAP Patching - Start ABAP - Fail if 'sapcontrol' with function 'StartSystem' has failed
       ansible.builtin.fail:
         msg: |
           FAIL: The command 'sapcontrol' with function 'StartSystem' has failed for current kernel.
-          Command: {{ __command_start_system }}
+          Command: {{ __sap_patching_register_start_system.cmd | d('') }}
           Output: {{ __sap_patching_register_start_system.stdout | d('') }}
           Error: {{ __sap_patching_register_start_system.stderr | d('') }}
       when:
@@ -55,19 +49,24 @@
 
     - name: SAP Patching - Start ABAP - Execute 'sapcontrol' with function 'WaitforStarted' to wait until the system is started
       ansible.builtin.shell:
-        cmd: "{{ __command_start_wait }}"
+        cmd: >-
+          source ~/.profile &&
+          sapcontrol
+          -nr {{ __sap_patching_fact_instance_list[0][1] }}
+          -function WaitforStarted 600 10
       args:
         executable: /bin/bash
       become: true
-      become_user: "{{ __sap_patching_fact_sap_system_sid | lower }}adm"
+      become_user: "{{ __sap_patching_fact_sidadm_user }}"
       register: __sap_patching_register_start_system_wait
       changed_when: __sap_patching_register_start_system_wait.rc == 0
+      failed_when: false  # Fail is handled in the next task, to report the command output.
 
     - name: SAP Patching - Start ABAP - Fail if 'sapcontrol' with function 'WaitforStarted' has failed
       ansible.builtin.fail:
         msg: |
           FAIL: The command 'sapcontrol' with function 'WaitforStarted' has failed for current kernel.
-          Command: {{ __command_start_wait }}
+          Command: {{ __sap_patching_register_start_system_wait.cmd | d('') }}
           Output: {{ __sap_patching_register_start_system_wait.stdout | d('') }}
           Error: {{ __sap_patching_register_start_system_wait.stderr | d('') }}
       when:

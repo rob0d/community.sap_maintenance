@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
+# HDB Server SID is override and we need to validate it only if it is defined. It is commented out by default.
 - name: SAP Patching - Validation - HDB Server - Assert that the variable 'sap_patching_hdb_system_sid' is defined as valid string
   ansible.builtin.assert:
     that:
@@ -12,22 +13,11 @@
       This is used when HANA SID is different than the SAP system SID.
   when: sap_patching_hdb_system_sid is defined
 
-- name: SAP Patching - Validation - HDB Server - Assert that the variable 'sap_patching_sap_system_sid' is defined as valid string
-  ansible.builtin.assert:
-    that:
-      - sap_patching_sap_system_sid is defined
-      - sap_patching_sap_system_sid is string
-      - sap_patching_sap_system_sid | trim | length == 3
-    fail_msg: |
-      The variable 'sap_patching_sap_system_sid' is undefined, not 3 characters long or invalid.
-      It should be a valid SAP system SID string of 3 characters.
-  when: sap_patching_hdb_system_sid is not defined
-
 - name: SAP Patching - Validation - HDB Server - Set fact with the system SID to be used for HANA
   ansible.builtin.set_fact:
-    __sap_patching_fact_sap_system_sid:
+    __sap_patching_fact_hdb_server_sid:
       "{{ (sap_patching_hdb_system_sid | d(sap_patching_sap_system_sid)) | upper }}"
-    __sap_patching_fact_sidadm_user:
+    __sap_patching_fact_hdb_server_sidadm_user:
       "{{ (sap_patching_hdb_system_sid | d(sap_patching_sap_system_sid)) | lower }}adm"
 
 

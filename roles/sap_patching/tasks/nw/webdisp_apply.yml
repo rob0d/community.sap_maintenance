@@ -1,19 +1,46 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
-# Facts are not set here to ensure that they do not influence other plan steps,
-# instead they are set temporarily in vars section of include_tasks.
+# Facts are set here for improved readability, instead of combining all this logic into one jinja2 block.
+
+# Prepare the path to kernel to apply, based on the following logic:
+# 1. If the prepare task was executed, use the prepared kernel path.
+# 2. If the user did not specify a kernel to apply, use the default symlink path.
+# 3. If the user specified a kernel to apply, use the specified path (relative to kernel base or absolute).
+
+- name: SAP Patching - Web Dispatcher - Apply - Set fact with kernel to apply if prepare was executed
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_to_apply:
+      "{{ __sap_patching_fact_webdisp_to_apply_prepared }}"
+  when: __sap_patching_fact_webdisp_to_apply_prepared is defined
+
+- name: SAP Patching - Web Dispatcher - Apply - Set fact with kernel to apply if not specified by user
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_to_apply:
+      "{{ __sap_patching_webdisp_base }}/{{ sap_patching_webdisp_to_apply_symlink }}"
+  when:
+    - __sap_patching_fact_webdisp_to_apply_prepared is not defined
+    - sap_patching_webdisp_to_apply | trim | length == 0
+
+- name: SAP Patching - Web Dispatcher - Apply - Set fact with kernel to apply if specified by user
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_to_apply:
+      "{{ __sap_patching_webdisp_base ~ '/' ~ sap_patching_webdisp_to_apply
+        if not sap_patching_webdisp_to_apply.startswith('/')
+        else sap_patching_webdisp_to_apply }}"
+  when:
+    - __sap_patching_fact_webdisp_to_apply_prepared is not defined
+    - sap_patching_webdisp_to_apply | trim | length > 0
+
 
 - name: SAP Patching - Web Dispatcher - Apply - Execute shared tasks for kernel apply
   ansible.builtin.include_tasks:
     file: shared_kernel_apply.yml
   vars:
-    __sap_patching_fact_sap_system_sid: "{{ sap_patching_wdp_system_sid | upper }}"
-    __sap_patching_fact_sidadm_user: "{{ sap_patching_wdp_system_sid | lower }}adm"
-    __sap_patching_fact_kernel_base: "{{ sap_patching_webdisp_base }}"
-    __sap_patching_fact_kernel_files_shared: "{{ sap_patching_webdisp_files_shared | d(true) }}"
+    __sap_patching_fact_sap_system_sid: "{{ (sap_patching_wdp_system_sid | d(sap_patching_sap_system_sid)) | upper }}"
+    __sap_patching_fact_sidadm_user: "{{ (sap_patching_wdp_system_sid | d(sap_patching_sap_system_sid)) | lower }}adm"
+    __sap_patching_fact_kernel_base: "{{ __sap_patching_webdisp_base }}"
     __sap_patching_fact_kernel_type: "webdisp"
-    # Temporary assignments for passing prepared facts from prepare tasks without affecting user variables.
-    __sap_patching_fact_kernel_to_apply_user: "{{ sap_patching_webdisp_to_apply | d('') }}"
-    __sap_patching_fact_kernel_to_apply_prepare: "{{ __sap_patching_fact_webdisp_to_apply | d('') }}"
-    __sap_patching_fact_kernel_to_apply_symlink_user: "{{ sap_patching_webdisp_to_apply_symlink }}"
+
+    # Every Web Dispatcher host has its own global exe directory, so all of them are patched.
+    __sap_patching_fact_kernel_apply_once: false

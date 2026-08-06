@@ -55,6 +55,36 @@
   failed_when: false
 
 
+# The primary SID is mandatory for every run and drives the owner of the staging files,
+# so it is validated once here instead of in each component validator.
+- name: SAP Patching - Validation - Assert that the variable 'sap_patching_sap_system_sid' is defined as valid string
+  ansible.builtin.assert:
+    that:
+      - sap_patching_sap_system_sid is defined
+      - sap_patching_sap_system_sid is string
+      - sap_patching_sap_system_sid | trim | length == 3
+    fail_msg: |
+      The variable 'sap_patching_sap_system_sid' is undefined, not 3 characters long or invalid.
+      It should be a valid SAP system SID string of 3 characters.
+
+
+# The owner of the staging files is uniform across the play, so it is validated once here,
+# but only when the plan contains a step that creates files owned by it.
+- name: SAP Patching - Validation - Validate the ownership of the patching files
+  ansible.builtin.include_tasks:
+    file: file_ownership.yml
+  when: sap_patching_execution_plan | intersect(__sap_patching_file_owning_steps) | length > 0
+  vars:
+    __sap_patching_file_owning_steps:
+      - abap_kernel_prepare
+      - webdisp_prepare
+      - hdb_client_prepare
+      - hdb_server_prepare
+      - host_agent_prepare
+      # Auto mode is writing '.upgrading' file and needs to be owned by the patching user.
+      - host_agent_apply_auto
+
+
 # Task dependent variables are validated in their respective validation files (e.g. hdb_server.yml, hdb_client.yml, host_agent.yml)
 - name: SAP Patching - Validation - Execute validation specific to each step in the execution plan
   ansible.builtin.include_tasks:

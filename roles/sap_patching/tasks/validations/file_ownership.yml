@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+
+# Validates the ownership of the files created in the staging area, and the SAPCAR executable used to extract them.
+
+# This file is not listed in the 'validators' key of '__sap_patching_exec_def'.
+# It is included once from 'validations/main.yml', because the owner is uniform across the play.
+
+
+# Validate if user defined owner is valid string.
+# This is executed before expansion of '__sap_patching_file_owner', so filter errors with trim or length will not trigger.
+- name: SAP Patching - Validation - File Ownership - Assert that the variable 'sap_patching_file_owner' is defined as non-empty string
+  ansible.builtin.assert:
+    that:
+      - sap_patching_file_owner is string
+    fail_msg: |
+      The variable 'sap_patching_file_owner' is not a string.
+      It should be a string containing a valid operating system user name.
+  when:
+    - sap_patching_file_owner is defined
+    - sap_patching_file_owner | length > 0
+
+# Now we can safely expand '__sap_patching_file_owner' and validate it.
+- name: SAP Patching - Validation - File Ownership - Assert that the patching owner is defined as non-empty string
+  ansible.builtin.fail:
+    msg: |
+      FAIL: The user owning the patching files is undefined, empty, or invalid.
+      It should be a string containing a valid operating system user name.
+      Define the variable 'sap_patching_file_owner' to set it explicitly for all components.
+  when:
+    - __sap_patching_file_owner is not string
+      or __sap_patching_file_owner | trim | length == 0
+
+
+# Ensure that user is present before we attempt become
+- name: SAP Patching - Validation - File Ownership - Assert that the patching owner is a valid user
+  ansible.builtin.fail:
+    msg: |
+      FAIL: The user '{{ __sap_patching_file_owner }}' does not exist on this host,
+      so the patching files cannot be owned by it.
+      {% if sap_patching_file_owner | d('') | trim | length > 0 %}
+      The user is defined in the variable 'sap_patching_file_owner'.
+      {% else %}
+      The user was derived as '<sap_patching_sap_system_sid>adm'.
+      Set the variable 'sap_patching_file_owner' to override it,
+      or ensure that the user exists on every host in the play.
+      {% endif %}
+  when: ansible_facts["getent_passwd"][__sap_patching_file_owner] is not defined
+
+
+- name: SAP Patching - Validation - File Ownership - Assert that the variable 'sap_patching_file_group' is defined as non-empty string
+  ansible.builtin.assert:
+    that:
+      - sap_patching_file_group is defined
+      - sap_patching_file_group is string
+      - sap_patching_file_group | length > 0
+    fail_msg: |
+      The variable 'sap_patching_file_group' is undefined, empty, or invalid.
+      It should be a string containing a valid group.
+
+# Ensure that group is present before we attempt become
+- name: SAP Patching - Validation - File Ownership - Assert that the variable 'sap_patching_file_group' contains valid group
+  ansible.builtin.assert:
+    that:
+      - ansible_facts["getent_group"][sap_patching_file_group] is defined
+    fail_msg: |
+      FAIL: The variable 'sap_patching_file_group' must be set to a valid group on the system.
+      The current value '{{ sap_patching_file_group }}' does not correspond to any group on the system.
+
+
+- name: SAP Patching - Validation - File Ownership - Assert that the variable 'sap_patching_sapcar_path' is defined as non-empty string
+  ansible.builtin.assert:
+    that:
+      - sap_patching_sapcar_path is defined
+      - sap_patching_sapcar_path is string
+      - sap_patching_sapcar_path | length > 0
+    fail_msg: |
+      The variable 'sap_patching_sapcar_path' is undefined, empty, or invalid.
+      It should be a string containing a valid file path.
+
+- name: SAP Patching - Validation - File Ownership - Stat availability of the path in the variable 'sap_patching_sapcar_path'
+  ansible.builtin.stat:
+    path: "{{ sap_patching_sapcar_path }}"
+  register: __sap_patching_register_sapcar_path_stat
+
+- name: SAP Patching - Validation - File Ownership - Fail if path in the variable 'sap_patching_sapcar_path' does not exist as a directory
+  ansible.builtin.fail:
+    msg: |
+      FAIL: The path "{{ sap_patching_sapcar_path }}" does not exist or is not a directory.
+      Please ensure that the SAPCAR path is correct and accessible.
+  when: not (__sap_patching_register_sapcar_path_stat.stat.exists
+          and __sap_patching_register_sapcar_path_stat.stat.isdir)
+
+
+- name: SAP Patching - Validation - File Ownership - Assert that the variable 'sap_patching_sapcar_file_name' is defined as non-empty string
+  ansible.builtin.assert:
+    that:
+      - sap_patching_sapcar_file_name is defined
+      - sap_patching_sapcar_file_name is string
+      - sap_patching_sapcar_file_name | length > 0
+    fail_msg: |
+      The variable 'sap_patching_sapcar_file_name' is undefined, empty, or invalid.
+      It should be a string containing a valid file name.
+
+- name: SAP Patching - Validation - File Ownership - Stat availability of the file in the variable 'sap_patching_sapcar_file_name'
+  ansible.builtin.stat:
+    path: "{{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
+  # Using become_user ensures that stat gathers facts using the owner of the patching files,
+  # because that user executes SAPCAR during the prepare step.
+  become: true
+  become_user: "{{ __sap_patching_file_owner }}"
+  register: __sap_patching_register_sapcar_file_name_stat
+
+- name: SAP Patching - Validation - File Ownership - Fail if file in the variable 'sap_patching_sapcar_file_name' is not executable
+  ansible.builtin.fail:
+    msg: |
+      FAIL: The file "{{ __sap_patching_sapcar_path }}/{{ sap_patching_sapcar_file_name }}"
+      does not exist as executable file for the user '{{ __sap_patching_file_owner }}'.
+      Please ensure that the SAPCAR file is correct and accessible.
+  when:
+    - not __sap_patching_register_sapcar_file_name_stat.stat.exists
+      or not __sap_patching_register_sapcar_file_name_stat.stat.executable

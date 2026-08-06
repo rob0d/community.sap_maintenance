@@ -56,6 +56,7 @@
     fail_msg: |
       The variable 'sap_patching_kernel_source_local' is undefined, empty, or invalid.
       It should be a path where the kernel files are located on the control node.
+      It is required because the variable 'sap_patching_kernel_files_on_target' is set to 'false'.
   when: not sap_patching_kernel_files_on_target
 
 

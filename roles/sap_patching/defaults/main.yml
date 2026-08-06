@@ -25,9 +25,10 @@ sap_patching_sapcar_path: "/install"
 sap_patching_sapcar_file_name: SAPCAR.EXE
 
 # The name of operating system user which owns all extracted files (String).
-# Defaults to '<sid>adm' user and can be changed to shared user if NFS share is used.
-# If the prepare (extraction) is executed on the controller node and <sid>adm is not available, root can be used
-sap_patching_file_owner: "{{ sap_patching_sap_system_sid | lower }}adm"
+# Defaults to an empty string, which means that the user is derived as '<sap_patching_sap_system_sid>adm'.
+# Set this variable to override it, for example to a shared user owning an NFS share.
+# NOTE: The user must exist on every host in the play.
+sap_patching_file_owner: ''
 
 # The name of operating system group which owns all extracted files (String).
 # Defaults to 'sapsys' group.
@@ -111,8 +112,10 @@ sap_patching_hdb_client_source: ''  # e.g. /install/hana/client/source
 sap_patching_hdb_client_source_local: ''  # e.g. "/install/hana/client/source"
 
 # The name of directory either relative to 'sap_patching_hdb_client_base' or absolute path to the HDB client (String).
-# If not set, the task 'abap_hdb_client_prepare' will populate correct directory,
-# or fall back to 'sap_patching_hdb_client_to_apply_symlink'.
+# This is used during the task 'hdb_client_apply' to determine which HDB client version to apply.
+# Applied only when the task 'hdb_client_prepare' was not executed in the same run,
+# because the freshly prepared HDB client always takes precedence over this variable.
+# If not set and prepare was not executed, it falls back to 'sap_patching_hdb_client_to_apply_symlink'.
 sap_patching_hdb_client_to_apply: ''
 
 # Then path to HDB client directory which will be applied for specific installation (String).
@@ -136,8 +139,11 @@ sap_patching_hdb_client_install_path:
 sap_patching_hdb_client_files_on_target: true
 
 # Select whether the HDB client files will be shared among multiple hosts (Boolean).
-# If 'true', the HDB client files will copied and extracted only once, because target host is expected to be shared.
-# If 'false', the HDB client files will copied and extracted on all target hosts separately.
+# It describes only the staging area 'sap_patching_hdb_client_base', not the installation itself,
+# which is controlled by 'sap_patching_hdb_client_install_path' and 'sap_patching_hdb_client_shared_path'.
+# If 'true', the HDB client files are copied and extracted only once, because the base directory is shared.
+# If 'false', the HDB client files are copied and extracted on all target hosts separately.
+# Directory and permission checks are always executed on every host, regardless of this variable.
 # NOTE: Existing shared filesystem is expected to be present and accessible by all hosts if 'true'.
 sap_patching_hdb_client_files_shared: true
 
@@ -257,8 +263,11 @@ sap_patching_host_agent_source: ''  # e.g. /install/host_agent/source"
 sap_patching_host_agent_source_local: ''  # e.g. "/install/host_agent/source"
 
 # The name of directory either relative to 'sap_patching_host_agent_base' or absolute path to the host agent (String).
-# If not set, the task 'host_agent_prepare' will populate correct directory,
-# or fall back to 'sap_patching_host_agent_to_apply_symlink'.
+# This is used during the tasks 'host_agent_apply_auto' and 'host_agent_apply_manual'
+# to determine which host agent version to apply.
+# Applied only when the task 'host_agent_prepare' was not executed in the same run,
+# because the freshly prepared host agent always takes precedence over this variable.
+# If not set and prepare was not executed, it falls back to 'sap_patching_host_agent_to_apply_symlink'.
 sap_patching_host_agent_to_apply: ''
 
 # The path to directory where host agent installation is located when using 'autoupdate' (String).
@@ -274,9 +283,11 @@ sap_patching_host_agent_autoupdate_path: ''  # e.g. /install/HostAgentUpdateDir
 sap_patching_host_agent_files_on_target: true
 
 # Select whether the host agent files will be shared among multiple hosts (Boolean).
-# Single purpose variable for presence of patching files on hosts, because host agent is always installed locally.
-# If 'true', the host agent files will copied and extracted only once, because target host is expected to be shared.
-# If 'false', the host agent files will copied and extracted on all target hosts separately.
+# It describes only the staging area 'sap_patching_host_agent_base', because the host agent
+# itself is always installed locally on every host in play.
+# If 'true', the host agent files are copied and extracted only once, because the base directory is shared.
+# If 'false', the host agent files are copied and extracted on all target hosts separately.
+# Directory and permission checks are always executed on every host, regardless of this variable.
 # NOTE: Existing shared filesystem is expected to be present and accessible by all hosts if 'true'.
 sap_patching_host_agent_files_shared: true
 
@@ -285,7 +296,8 @@ sap_patching_host_agent_files_shared: true
 
 # SAP Web Dispatcher System ID (SID) (String).
 # Separate from 'sap_patching_sap_system_sid' because Web Dispatcher can be installed on different SID than ABAP system.
-sap_patching_wdp_system_sid: ''
+# NOTE: Set only if the Web Dispatcher uses a different SID than 'sap_patching_sap_system_sid'.
+# sap_patching_wdp_system_sid: ''
 
 # The path to base web dispatcher directory where version specific directories will be created during the prepare step (String).
 # Used when 'sap_patching_webdisp_files_on_target' is set to 'true'.
@@ -334,9 +346,6 @@ sap_patching_webdisp_files_shared: true
 sap_patching_kernel_rks_wait_timeout: 900
 # RKS soft shutdown timeout in seconds - must be more than rdisp/shutdown/max_time (default is 3600 seconds)
 sap_patching_kernel_rks_soft_timeout: 3600
-# Optional override for UpdateSystem function, that must be used with caution, because it can ignore RKS requirements.
-# Force mode is automatically used when HA is detected by sapcontrol.
-sap_patching_kernel_rks_force: false
 
 # Name of symbolic link to point to the folder to be used by the patching process
 sap_patching_kernel_to_apply_symlink: ansible_to_apply
@@ -344,3 +353,11 @@ sap_patching_hdb_client_to_apply_symlink: ansible_to_apply
 sap_patching_hdb_server_to_apply_symlink: ansible_to_apply
 sap_patching_host_agent_to_apply_symlink: ansible_to_apply
 sap_patching_webdisp_to_apply_symlink: ansible_to_apply
+
+# Select whether the copy of the patching files from the control node runs on all hosts at once (Boolean).
+# Relevant only when the 'files_on_target' vars are set to 'false' and the 'files_shared' vars are set to 'false',
+# because that is the only case when the same files are copied from the control node to every host separately.
+# If 'false', the copy is throttled to one host at a time, which is slower,
+#   but it prevents the control node and the network from being saturated.
+# If 'true', all hosts are copied to in parallel, which is faster on a fast network with few hosts.
+sap_patching_disable_throttle: false

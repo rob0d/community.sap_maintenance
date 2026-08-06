@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+
+# Shared task file for both ABAP Kernel and Web Dispatcher Kernel patching.
+
+# Determines on which hosts in play the kernel is installed and elects the primary host.
+# Executed on all hosts in play, so it must never be limited by 'run_once'.
+# NOTE: Election relies on the default 'linear' strategy, where all hosts complete the detection
+# tasks before any host builds the list. Election is not deterministic with 'strategy: free'.
+
+- name: SAP Patching - Kernel - Detect - Set fact with global exe directory
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_global_exe:
+      "/usr/sap/{{ __sap_patching_fact_sap_system_sid | upper }}/SYS/exe/run"
+
+- name: SAP Patching - Kernel - Detect - Stat availability of the global exe directory {{ __sap_patching_fact_kernel_global_exe }}
+  ansible.builtin.stat:
+    path: "{{ __sap_patching_fact_kernel_global_exe }}"
+  register: __sap_patching_register_sapmnt_exe_stat
+
+- name: SAP Patching - Kernel - Detect - Find files in the global exe directory {{ __sap_patching_fact_kernel_global_exe }}
+  ansible.builtin.find:
+    paths: "{{ __sap_patching_fact_kernel_global_exe }}"
+    file_type: file
+  register: __sap_patching_register_sapmnt_exe_files
+  when:
+    - __sap_patching_register_sapmnt_exe_stat.stat.exists
+    - __sap_patching_register_sapmnt_exe_stat.stat.islnk
+      or __sap_patching_register_sapmnt_exe_stat.stat.isdir
+
+# Fact is set unconditionally, so that the value from previously executed plan steps is overwritten.
+- name: SAP Patching - Kernel - Detect - Set fact if the kernel is present on this host
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_installed:
+      "{{ __sap_patching_register_sapmnt_exe_files.matched | d(0) | int > 0 }}"
+
+
+# Every host builds the same list from 'hostvars', so neither 'run_once' nor delegation is needed.
+# 'ansible_play_hosts' excludes failed and unreachable hosts, so those are never elected.
+- name: SAP Patching - Kernel - Detect - Set fact with hosts in play where the kernel is present
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_hosts: >-
+      {{ ansible_play_hosts
+         | map('extract', hostvars)
+         | selectattr('__sap_patching_fact_kernel_installed', 'defined')
+         | selectattr('__sap_patching_fact_kernel_installed')
+         | map(attribute='inventory_hostname')
+         | list }}
+
+- name: SAP Patching - Kernel - Detect - Set fact with the primary host for kernel patching
+  ansible.builtin.set_fact:
+    __sap_patching_fact_kernel_primary_host: "{{ __sap_patching_fact_kernel_hosts | first | d('') }}"
+
+# Detection is never fatal, so that a single play can contain hosts of different roles.
+# A failure here would remove the host from 'ansible_play_hosts' and therefore cancel
+# all remaining steps of the execution plan for that host, even the unrelated ones.
+# Broken installations are reported and skipped, and a re-run after fixing them patches the host,
+# because both prepare and apply are idempotent.
+- name: SAP Patching - Kernel - Detect - Warning that the kernel patching is skipped on this host
+  ansible.builtin.debug:
+    msg: |
+      {% if not __sap_patching_register_sapmnt_exe_stat.stat.exists %}
+      WARN: The global exe directory "{{ __sap_patching_fact_kernel_global_exe }}" was not found,
+      so the kernel patching is skipped on this host.
+      If this is unexpected, ensure that the SAP system "{{ __sap_patching_fact_sap_system_sid | upper }}" is installed here.
+      {% else %}
+      WARN: The global exe directory "{{ __sap_patching_fact_kernel_global_exe }}" was found,
+      but it does not contain any kernel files, so the kernel patching is skipped on this host.
+      This indicates that the SAP system is not correctly installed,
+      or that the shared filesystem holding the global exe directory is not mounted.
+      {% endif %}
+  when:
+    - not __sap_patching_fact_kernel_installed
+    - __sap_patching_fact_kernel_hosts | length > 0

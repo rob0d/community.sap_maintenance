@@ -15,19 +15,18 @@
         - always
 
 
-- name: SAP Patching - Include task file for each step in the execution plan
-  ansible.builtin.include_tasks:
-    file: main_loop.yml
-  loop: "{{ sap_patching_execution_plan }}"
-  loop_control:
-    loop_var: __sap_patching_step
-    label: "Executing step: {{ __sap_patching_step }}"
-  # when: "__sap_patching_exec_def[__sap_patching_step].where | from_yaml"
-  when:
-    - __sap_patching_exec_def is defined
-    - __sap_patching_exec_def is mapping
-    - __sap_patching_exec_def | length > 0
-    - __sap_patching_exec_def[__sap_patching_step] is defined
-    - __sap_patching_exec_def[__sap_patching_step].file is defined
-  tags:
-    - always
+    - name: SAP Patching - Include task file for each step in the execution plan
+      ansible.builtin.include_tasks:
+        file: main_loop.yml
+      loop: "{{ sap_patching_execution_plan }}"
+      loop_control:
+        loop_var: __sap_patching_step
+        label: "Executing step: {{ __sap_patching_step }}"
+      when:
+        - __sap_patching_exec_def is defined
+        - __sap_patching_exec_def is mapping
+        - __sap_patching_exec_def | length > 0
+        - __sap_patching_exec_def[__sap_patching_step] is defined
+        - __sap_patching_exec_def[__sap_patching_step].file is defined
+      tags:
+        - always

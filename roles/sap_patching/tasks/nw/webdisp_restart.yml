@@ -8,14 +8,14 @@
   ansible.builtin.include_tasks:
     file: "{{ role_path }}/tasks/startstop/sapstartsrv_instances.yml"
   vars:
-    __sap_patching_fact_sidadm_user: "{{ sap_patching_wdp_system_sid | lower }}adm"
+    __sap_patching_fact_sidadm_user: "{{ (sap_patching_wdp_system_sid | d(sap_patching_sap_system_sid)) | lower }}adm"
 
 - name: SAP Patching - Web Dispatcher - Restart - Execute shared tasks for kernel restart
   ansible.builtin.include_tasks:
     file: shared_kernel_restart.yml
   vars:
-    __sap_patching_fact_sap_system_sid: "{{ sap_patching_wdp_system_sid | upper }}"
-    __sap_patching_fact_sidadm_user: "{{ sap_patching_wdp_system_sid | lower }}adm"
+    __sap_patching_fact_sap_system_sid: "{{ (sap_patching_wdp_system_sid | d(sap_patching_sap_system_sid)) | upper }}"
+    __sap_patching_fact_sidadm_user: "{{ (sap_patching_wdp_system_sid | d(sap_patching_sap_system_sid)) | lower }}adm"
     __sap_patching_fact_kernel_restart_strategy: "all"  # Overwrites 'rks' and 'bootstrap' that abap kernel accepts.
     __sap_patching_fact_kernel_type: "webdisp"
   when: __sap_patching_fact_instance_list | d([]) | length > 0

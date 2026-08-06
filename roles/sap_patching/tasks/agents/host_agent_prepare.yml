@@ -1,82 +1,161 @@
 # SPDX-License-Identifier: Apache-2.0
 ---
 
+# Host agent is present on every host in play, so there is no installation election as for the kernel
+# or HDB client. The primary host - the single writer for a shared staging area - is the first host
+# in play, evaluated identically on every host thanks to the default 'linear' strategy.
+- name: SAP Patching - Host Agent - Prepare - Set fact with the primary host for a shared staging area
+  ansible.builtin.set_fact:
+    __sap_patching_fact_host_agent_primary_host: "{{ ansible_play_hosts | first | d('') }}"
+
+
 - name: Block for base directory
   block:
+    # Stat only on hosts that will create the directory (the primary in shared mode, or every host with a
+    # per-host staging area). Non-primary hosts skip this so they do not cache an NFS negative lookup,
+    # which is kept for up to 'acdirmax' and would hide the directory the primary is about to create.
     - name: SAP Patching - Host Agent - Prepare - Stat availability of the base directory
       ansible.builtin.stat:
         path: "{{ __sap_patching_host_agent_base }}"
       register: __sap_patching_register_host_agent_prepare_base_stat
+      when:
+        - not sap_patching_host_agent_files_shared
+          or inventory_hostname == __sap_patching_fact_host_agent_primary_host
 
-    - name: SAP Patching - Host Agent - Prepare - Create base directory with user {{ sap_patching_file_owner }}
+    # In shared mode only the primary host creates the directory, so a missing shared mount on another
+    # host is reported below instead of being masked by a local directory on the mount point.
+    - name: SAP Patching - Host Agent - Prepare - Create base directory with user {{ __sap_patching_file_owner }}
       ansible.builtin.file:
         path: "{{ __sap_patching_host_agent_base }}"
         state: directory
         mode: '0755'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
+      when:
+        - not sap_patching_host_agent_files_shared
+          or inventory_hostname == __sap_patching_fact_host_agent_primary_host
+        - not __sap_patching_register_host_agent_prepare_base_stat.stat.exists
+
+    # Verify the directory is visible on every host, retrying to absorb NFS propagation delay after the
+    # primary created it. 'failed_when: false' lets the dedicated task below report a helpful message.
+    - name: SAP Patching - Host Agent - Prepare - Verify availability of the base directory
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_host_agent_base }}"
+      register: __sap_patching_register_host_agent_prepare_base_stat
+      until: __sap_patching_register_host_agent_prepare_base_stat.stat.exists
+      retries: 6
+      delay: 5
+      failed_when: false
+
+    - name: SAP Patching - Host Agent - Prepare - Fail if the base directory is not available on this host
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The base directory "{{ __sap_patching_host_agent_base }}" is not available on this host.
+          {% if sap_patching_host_agent_files_shared %}
+          It is prepared only on the primary host "{{ __sap_patching_fact_host_agent_primary_host }}".
+          Ensure the base directory is on a shared filesystem mounted on all hosts,
+          or set 'sap_patching_host_agent_files_shared' to 'false' to prepare it on every host separately.
+          {% else %}
+          Creating the directory failed. Please check the path and the permissions.
+          {% endif %}
       when: not __sap_patching_register_host_agent_prepare_base_stat.stat.exists
 
-    - name: Block when directory exists
-      when: __sap_patching_register_host_agent_prepare_base_stat.stat.exists
-      block:
-        - name: SAP Patching - Host Agent - Prepare - Fail if base directory is not a directory
-          ansible.builtin.fail:
-            msg: |
-              FAIL: The path "{{ sap_patching_host_agent_base }}" exists but it is not a directory.
-              Please ensure that the path defined in the variable 'sap_patching_host_agent_base' is a directory.
-          when: not (__sap_patching_register_host_agent_prepare_base_stat.stat.exists
-                  and __sap_patching_register_host_agent_prepare_base_stat.stat.isdir)
+    - name: SAP Patching - Host Agent - Prepare - Fail if base directory is not a directory
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The path "{{ sap_patching_host_agent_base }}" exists but it is not a directory.
+          Please ensure that the path defined in the variable 'sap_patching_host_agent_base' is a directory.
+      when: not __sap_patching_register_host_agent_prepare_base_stat.stat.isdir
 
-        - name: SAP Patching - Host Agent - Prepare - Stat base directory with user {{ sap_patching_file_owner }}
-          ansible.builtin.stat:
-            path: "{{ __sap_patching_host_agent_base }}"
-          register: __sap_patching_register_host_agent_prepare_base_user_stat
-          # Stat with correct user to check permissions.
-          become: true
-          become_user: "{{ sap_patching_file_owner }}"
+    - name: SAP Patching - Host Agent - Prepare - Stat base directory with user {{ __sap_patching_file_owner }}
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_host_agent_base }}"
+      register: __sap_patching_register_host_agent_prepare_base_user_stat
+      # Stat with correct user to check permissions.
+      become: true
+      become_user: "{{ __sap_patching_file_owner }}"
 
-        - name: SAP Patching - Host Agent - Prepare - Fail if user cannot write to base directory
-          ansible.builtin.fail:
-            msg: |
-              FAIL: User '{{ sap_patching_file_owner }}' does not have write permissions
-              to the directory '{{ sap_patching_host_agent_base }}'
-              defined in the variable 'sap_patching_host_agent_base'.
+    - name: SAP Patching - Host Agent - Prepare - Fail if user cannot write to base directory
+      ansible.builtin.fail:
+        msg: |
+          FAIL: User '{{ __sap_patching_file_owner }}' does not have write permissions
+          to the directory '{{ sap_patching_host_agent_base }}'
+          defined in the variable 'sap_patching_host_agent_base'.
 
-              Ansible cannot create the symlink '{{ sap_patching_host_agent_to_apply_symlink }}' without write access to this path.
-              Please check the directory permissions (chmod/chown).
-          when: not __sap_patching_register_host_agent_prepare_base_user_stat.stat.writeable
+          Ansible cannot create the symlink '{{ sap_patching_host_agent_to_apply_symlink }}' without write access to this path.
+          Please check the directory permissions (chmod/chown).
+      when: not __sap_patching_register_host_agent_prepare_base_user_stat.stat.writeable
 
 
 - name: Block for source directory
   block:
+    # Stat only on creating hosts, so non-primary hosts do not cache an NFS negative lookup
+    # (see the base directory block above for the full explanation).
     - name: SAP Patching - Host Agent - Prepare - Stat availability of the source directory
       ansible.builtin.stat:
         path: "{{ __sap_patching_host_agent_source }}"
       register: __sap_patching_register_host_agent_prepare_source_stat
+      when:
+        - not sap_patching_host_agent_files_shared
+          or inventory_hostname == __sap_patching_fact_host_agent_primary_host
 
-    - name: SAP Patching - Host Agent - Prepare - Create source directory with user {{ sap_patching_file_owner }}
+    # In shared mode only the primary host creates the directory, so a missing shared mount on another
+    # host is reported below instead of being masked by a local directory on the mount point.
+    - name: SAP Patching - Host Agent - Prepare - Create source directory with user {{ __sap_patching_file_owner }}
       ansible.builtin.file:
         path: "{{ __sap_patching_host_agent_source }}"
         state: directory
         mode: '0755'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
+      when:
+        - not sap_patching_host_agent_files_shared
+          or inventory_hostname == __sap_patching_fact_host_agent_primary_host
+        - not __sap_patching_register_host_agent_prepare_source_stat.stat.exists
+
+    # Verify the directory is visible on every host, retrying to absorb NFS propagation delay after the
+    # primary created it. 'failed_when: false' lets the dedicated task below report a helpful message.
+    - name: SAP Patching - Host Agent - Prepare - Verify availability of the source directory
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_host_agent_source }}"
+      register: __sap_patching_register_host_agent_prepare_source_stat
+      until: __sap_patching_register_host_agent_prepare_source_stat.stat.exists
+      retries: 6
+      delay: 5
+      failed_when: false
+
+    - name: SAP Patching - Host Agent - Prepare - Fail if the source directory is not available on this host
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The source directory "{{ __sap_patching_host_agent_source }}" is not available on this host.
+          {% if sap_patching_host_agent_files_shared %}
+          It is prepared only on the primary host "{{ __sap_patching_fact_host_agent_primary_host }}".
+          Ensure the source directory is on a shared filesystem mounted on all hosts,
+          or set 'sap_patching_host_agent_files_shared' to 'false' to prepare it on every host separately.
+          {% else %}
+          Creating the directory failed. Please check the path and the permissions.
+          {% endif %}
       when: not __sap_patching_register_host_agent_prepare_source_stat.stat.exists
 
     - name: SAP Patching - Host Agent - Prepare - Fail if source directory is not a directory
       ansible.builtin.fail:
         msg: |
           FAIL: The path "{{ sap_patching_host_agent_source }}" exists but it is not a directory.
-              Please ensure that the path defined in the variable 'sap_patching_host_agent_source' is a directory.
-      when: not (__sap_patching_register_host_agent_prepare_source_stat.stat.exists
-              and __sap_patching_register_host_agent_prepare_source_stat.stat.isdir)
+          Please ensure that the path defined in the variable 'sap_patching_host_agent_source' is a directory.
+      when: not __sap_patching_register_host_agent_prepare_source_stat.stat.isdir
 
 
     # Copy to multiple targets can saturate the control node and the network.
-    # NOTE: Possible to add 'throttle: 1' to limit to one copy at a time, but it will slow down the process significantly.
+    # With a shared staging area the copy runs only on the elected primary host, because every host
+    # sees the same source directory. With a per-host staging area it runs on every host, and 'throttle'
+    # limits it to one copy at a time so the control node and network are not saturated.
+    # Set 'sap_patching_disable_throttle' to 'true' to copy to all hosts in parallel.
     - name: Block for local source directory
-      when: not sap_patching_host_agent_files_on_target
+      throttle: "{{ 0 if sap_patching_disable_throttle | d(false) else 1 }}"
+      when:
+        - not sap_patching_host_agent_files_on_target
+        - not sap_patching_host_agent_files_shared
+          or inventory_hostname == __sap_patching_fact_host_agent_primary_host
       block:
         - name: SAP Patching - Host Agent - Prepare - Stat availability of the local source directory
           ansible.builtin.stat:
@@ -98,7 +177,7 @@
             dest: "{{ __sap_patching_host_agent_source }}/"
             remote_src: false  # Copy from control node
             mode: '0755'
-            owner: "{{ sap_patching_file_owner }}"
+            owner: "{{ __sap_patching_file_owner }}"
             group: "{{ sap_patching_file_group }}"
 
 
@@ -114,7 +193,12 @@
 
 
 - name: Block to execute only if SAR files were found
-  when: __sap_patching_register_host_agent_source_dir_content.matched | d(0) > 0
+  # With a shared staging area extraction is limited to the elected primary host, so it happens exactly
+  # once. With a per-host staging area every host extracts its own copy.
+  when:
+    - not sap_patching_host_agent_files_shared
+      or inventory_hostname == __sap_patching_fact_host_agent_primary_host
+    - __sap_patching_register_host_agent_source_dir_content.matched | d(0) > 0
   block:
 
     # In case there are more than one SAR files, get the one with the highest version number
@@ -168,7 +252,7 @@
         path: "{{ __sap_patching_fact_host_agent_extract_target }}"
         state: directory
         mode: '0755'
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
       when: __sap_patching_fact_host_agent_version != ''
 
@@ -209,7 +293,7 @@
       args:
         chdir: "{{ __sap_patching_fact_host_agent_extract_target }}"
       become: true
-      become_user: "{{ sap_patching_file_owner }}"
+      become_user: "{{ __sap_patching_file_owner }}"
       changed_when: "'SAPCAR: processing archive' in __sap_patching_register_extract_result.stdout"
 
     - name: SAP Patching - Host Agent - Prepare - Fail if extraction of host agent SAR file failed
@@ -240,12 +324,57 @@
         dest: "{{ __sap_patching_host_agent_base }}/{{ sap_patching_host_agent_to_apply_symlink }}"
         state: link
         force: true
-        owner: "{{ sap_patching_file_owner }}"
+        owner: "{{ __sap_patching_file_owner }}"
         group: "{{ sap_patching_file_group }}"
       become: true
-      become_user: "{{ sap_patching_file_owner }}"
+      become_user: "{{ __sap_patching_file_owner }}"
 
     - name: SAP Patching - Host Agent - Prepare - Set fact with prepared path for further execution tasks
       ansible.builtin.set_fact:
-        __sap_patching_fact_host_agent_to_apply:
+        __sap_patching_fact_host_agent_to_apply_prepared:
           "{{ __sap_patching_fact_host_agent_extract_target }}"
+
+
+- name: SAP Patching - Host Agent - Prepare - Inform that SAR files were not found
+  ansible.builtin.debug:
+    msg: |
+      No host agent SAR files found in source directory {{ __sap_patching_host_agent_source }}.
+      Skipping host agent preparation.
+  when: __sap_patching_register_host_agent_source_dir_content.matched | d(0) == 0
+
+
+# In shared mode the host agent is prepared only on the primary host, so the remaining hosts copy the
+# resolved path from it. The staging area is shared, therefore the path is identical and the verification
+# block below can confirm that every host actually sees the prepared host agent.
+- name: SAP Patching - Host Agent - Prepare - Propagate prepared host agent path from the primary host
+  ansible.builtin.set_fact:
+    __sap_patching_fact_host_agent_to_apply_prepared:
+      "{{ hostvars[__sap_patching_fact_host_agent_primary_host]['__sap_patching_fact_host_agent_to_apply_prepared'] }}"
+  when:
+    - sap_patching_host_agent_files_shared
+    - inventory_hostname != __sap_patching_fact_host_agent_primary_host
+    - hostvars[__sap_patching_fact_host_agent_primary_host]['__sap_patching_fact_host_agent_to_apply_prepared'] is defined
+
+
+# Executed on every host, because extraction above can be limited to the elected primary host.
+# This is the only check proving that the base directory is really shared.
+- name: Block for all hosts
+  when: __sap_patching_fact_host_agent_to_apply_prepared is defined
+  block:
+
+    - name: SAP Patching - Host Agent - Prepare - Stat prepared host agent directory on all hosts
+      ansible.builtin.stat:
+        path: "{{ __sap_patching_fact_host_agent_to_apply_prepared }}/saphostexec"
+      register: __sap_patching_register_host_agent_prepared_stat
+
+    - name: SAP Patching - Host Agent - Prepare - Fail if prepared host agent is not available on this host
+      ansible.builtin.fail:
+        msg: |
+          FAIL: The prepared host agent "{{ __sap_patching_fact_host_agent_to_apply_prepared }}" is not available on this host.
+          Host agent was prepared only on the elected primary host "{{ __sap_patching_fact_host_agent_primary_host }}",
+          because the variable 'sap_patching_host_agent_files_shared' is set to 'true'.
+
+          Please ensure that the path defined in the variable 'sap_patching_host_agent_base'
+          is on a shared filesystem mounted on all hosts,
+          or set 'sap_patching_host_agent_files_shared' to 'false' to prepare the host agent on every host separately.
+      when: not __sap_patching_register_host_agent_prepared_stat.stat.exists
